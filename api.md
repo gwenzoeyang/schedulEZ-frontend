@@ -1,6 +1,8 @@
+---
+
 # API Specification: CourseCatalog Concept
 
-**Purpose:** maintain a record of courses, their attributes, and their availability across terms
+**Purpose:** allow a user to discover courses
 
 ---
 
@@ -8,22 +10,66 @@
 
 ### POST /api/CourseCatalog/addCourse
 
-**Description:** Adds a new course to the catalog with the given attributes.
+**Description:** Adds a new course to the catalog with specified details.
 
 **Requirements:**
-- course does not exist
+- true
 
 **Effects:**
-- adds a new course with the given attributes
+- adds a new course to the catalog
+
+**Request Body:**
+```json
+{
+  "name": "string",
+  "code": "string",
+  "description": "string",
+  "creditHours": "number",
+  "campus": "string",
+  "schedule": "string",
+  "prerequisites": "array<string>",
+  "corequisites": "array<string>"
+}
+```
+
+**Success Response Body (Action):**
+```json
+{
+  "course": "string"
+}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+
+### POST /api/CourseCatalog/updateCourseDetails
+
+**Description:** Updates the details of an existing course in the catalog.
+
+**Requirements:**
+- course exists
+
+**Effects:**
+- updates the details of the given course
 
 **Request Body:**
 ```json
 {
   "course": "string",
   "name": "string",
+  "code": "string",
   "description": "string",
-  "credits": "number",
-  "subject": "string"
+  "creditHours": "number",
+  "campus": "string",
+  "schedule": "string",
+  "prerequisites": "array<string>",
+  "corequisites": "array<string>"
 }
 ```
 
@@ -38,6 +84,7 @@
   "error": "string"
 }
 ```
+
 ---
 
 ### POST /api/CourseCatalog/removeCourse
@@ -45,10 +92,10 @@
 **Description:** Removes a course from the catalog.
 
 **Requirements:**
-- course exists and is not offered in any term
+- course exists and is not referenced by any other course as a prerequisite or corequisite
 
 **Effects:**
-- removes the course
+- removes the course from the catalog
 
 **Request Body:**
 ```json
@@ -68,29 +115,31 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/CourseCatalog/offerCourse
+### POST /api/CourseCatalog/_getAllCourses
 
-**Description:** Associates a course with a term, making it available for registration.
+**Description:** Retrieves all courses currently in the catalog.
 
 **Requirements:**
-- course exists and is not already offered in this term
+- true
 
 **Effects:**
-- associates the course with the term, making it available for registration
+- returns all courses in the catalog
 
 **Request Body:**
 ```json
-{
-  "course": "string",
-  "term": "string"
-}
+{}
 ```
 
-**Success Response Body (Action):**
+**Success Response Body (Query):**
 ```json
-{}
+[
+  {
+    "course": "string"
+  }
+]
 ```
 
 **Error Response Body:**
@@ -99,29 +148,33 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/CourseCatalog/unofferCourse
+### POST /api/CourseCatalog/_getCourseByCode
 
-**Description:** Disassociates a course from a term, making it unavailable for registration.
+**Description:** Retrieves a specific course by its unique code.
 
 **Requirements:**
-- course exists and is offered in this term
+- course with code exists
 
 **Effects:**
-- disassociates the course from the term, making it unavailable for registration
+- returns the course with the given code
 
 **Request Body:**
 ```json
 {
-  "course": "string",
-  "term": "string"
+  "code": "string"
 }
 ```
 
-**Success Response Body (Action):**
+**Success Response Body (Query):**
 ```json
-{}
+[
+  {
+    "course": "string"
+  }
+]
 ```
 
 **Error Response Body:**
@@ -130,29 +183,33 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/CourseCatalog/addPrerequisite
+### POST /api/CourseCatalog/_searchCourses
 
-**Description:** Adds a prerequisite to the set of prerequisites for a course.
+**Description:** Searches for courses whose name or description match a given query string.
 
 **Requirements:**
-- course and prerequisite exist, and prerequisite is not already a prerequisite of course
+- true
 
 **Effects:**
-- adds prerequisite to the set of prerequisites for course
+- returns courses whose name or description match the query
 
 **Request Body:**
 ```json
 {
-  "course": "string",
-  "prerequisite": "string"
+  "query": "string"
 }
 ```
 
-**Success Response Body (Action):**
+**Success Response Body (Query):**
 ```json
-{}
+[
+  {
+    "course": "string"
+  }
+]
 ```
 
 **Error Response Body:**
@@ -161,48 +218,18 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/CourseCatalog/removePrerequisite
+### POST /api/CourseCatalog/_getCoursePrerequisites
 
-**Description:** Removes a prerequisite from the set of prerequisites for a course.
-
-**Requirements:**
-- course and prerequisite exist, and prerequisite is a prerequisite of course
-
-**Effects:**
-- removes prerequisite from the set of prerequisites for course
-
-**Request Body:**
-```json
-{
-  "course": "string",
-  "prerequisite": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/CourseCatalog/_getCourse
-
-**Description:** Returns the attributes of the specified course.
+**Description:** Retrieves all prerequisites for a given course.
 
 **Requirements:**
 - course exists
 
 **Effects:**
-- returns the attributes of the specified course
+- returns all prerequisites for the given course
 
 **Request Body:**
 ```json
@@ -215,16 +242,7 @@
 ```json
 [
   {
-    "name": "string",
-    "description": "string",
-    "credits": "number",
-    "subject": "string",
-    "meets": [
-      "string"
-    ],
-    "prerequisites": [
-      "string"
-    ]
+    "prerequisite": "string"
   }
 ]
 ```
@@ -235,64 +253,23 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/CourseCatalog/_listCourses
+### POST /api/CourseCatalog/_getCourseCorequisites
 
-**Description:** Returns all courses and their attributes.
-
-**Requirements:**
-- true
-
-**Effects:**
-- returns all courses and their attributes
-
-**Request Body:**
-```json
-{}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "courseId": "string",
-    "name": "string",
-    "description": "string",
-    "credits": "number",
-    "subject": "string",
-    "meets": [
-      "string"
-    ],
-    "prerequisites": [
-      "string"
-    ]
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/CourseCatalog/_listOfferedCourses
-
-**Description:** Returns all courses offered in the given term, with name and subject.
+**Description:** Retrieves all corequisites for a given course.
 
 **Requirements:**
-- term exists
+- course exists
 
 **Effects:**
-- returns all courses offered in the given term, with name and subject
+- returns all corequisites for the given course
 
 **Request Body:**
 ```json
 {
-  "term": "string"
+  "course": "string"
 }
 ```
 
@@ -300,9 +277,7 @@
 ```json
 [
   {
-    "courseId": "string",
-    "name": "string",
-    "subject": "string"
+    "corequisite": "string"
   }
 ]
 ```
@@ -313,33 +288,71 @@
   "error": "string"
 }
 ```
----
-# API Specification: CrossRegTravel Concept
 
-**Purpose:** facilitate travel arrangements for students taking courses at other campuses through cross-registration
+---
+
+# API Specification: Schedule Concept
+
+**Purpose:** define and manage schedules for various entities like courses or events.
 
 ---
 
 ## API Endpoints
 
-### POST /api/CrossRegTravel/enrollInCrossRegCourse
+### POST /api/Schedule/createSchedule
 
-**Description:** Records student's enrollment in a cross-registered course and sets travelRequested to true.
+**Description:** Creates a new schedule with specified days, times, and location.
 
 **Requirements:**
-- student, homeCampus, hostCampus, course, term exist; student is not already enrolled in this course for this term
+- startTime is before endTime and location is not empty
 
 **Effects:**
-- records student's enrollment in a cross-registered course, sets travelRequested to true
+- creates a new schedule and returns its identifier
 
 **Request Body:**
 ```json
 {
-  "student": "string",
-  "homeCampus": "string",
-  "hostCampus": "string",
-  "course": "string",
-  "term": "string"
+  "daysOfWeek": "array<string>",
+  "startTime": "string",
+  "endTime": "string",
+  "location": "string"
+}
+```
+
+**Success Response Body (Action):**
+```json
+{
+  "schedule": "string"
+}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+
+### POST /api/Schedule/updateSchedule
+
+**Description:** Updates the details of an existing schedule.
+
+**Requirements:**
+- schedule exists and startTime is before endTime and location is not empty
+
+**Effects:**
+- updates the details of the given schedule
+
+**Request Body:**
+```json
+{
+  "schedule": "string",
+  "daysOfWeek": "array<string>",
+  "startTime": "string",
+  "endTime": "string",
+  "location": "string"
 }
 ```
 
@@ -354,31 +367,183 @@
   "error": "string"
 }
 ```
+
+---
+
+### POST /api/Schedule/deleteSchedule
+
+**Description:** Deletes a schedule.
+
+**Requirements:**
+- schedule exists and is not referenced by any other concept
+
+**Effects:**
+- removes the schedule
+
+**Request Body:**
+```json
+{
+  "schedule": "string"
+}
+```
+
+**Success Response Body (Action):**
+```json
+{}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+
+### POST /api/Schedule/_getScheduleById
+
+**Description:** Retrieves the full details of a specified schedule.
+
+**Requirements:**
+- schedule exists
+
+**Effects:**
+- returns the details of the specified schedule
+
+**Request Body:**
+```json
+{
+  "schedule": "string"
+}
+```
+
+**Success Response Body (Query):**
+```json
+[
+  {
+    "daysOfWeek": "array<string>",
+    "startTime": "string",
+    "endTime": "string",
+    "location": "string"
+  }
+]
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+
+### POST /api/Schedule/_findSchedules
+
+**Description:** Finds schedules matching specific criteria.
+
+**Requirements:**
+- true
+
+**Effects:**
+- returns schedules matching the criteria
+
+**Request Body:**
+```json
+{
+  "daysOfWeek": "array<string>",
+  "startTime": "string",
+  "endTime": "string",
+  "location": "string"
+}
+```
+
+**Success Response Body (Query):**
+```json
+[
+  {
+    "schedule": "string"
+  }
+]
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+
+# API Specification: CrossRegTravel Concept
+
+**Purpose:** manage travel arrangements for cross-registered students.
+
+---
+
+## API Endpoints
+
+### POST /api/CrossRegTravel/requestTravel
+
+**Description:** Creates a new travel request for a student attending a cross-registered course.
+
+**Requirements:**
+- student and course exist, travelDate is in the future, pickupLocation and dropoffLocation are valid
+
+**Effects:**
+- creates a new travel request for the student and course, sets status to 'Pending'
+
+**Request Body:**
+```json
+{
+  "student": "string",
+  "course": "string",
+  "travelDate": "string",
+  "pickupLocation": "string",
+  "dropoffLocation": "string"
+}
+```
+
+**Success Response Body (Action):**
+```json
+{
+  "requestId": "string"
+}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
 ---
 
 ### POST /api/CrossRegTravel/approveTravel
 
-**Description:** Sets travelApproved to true and updates travelDetails for an enrolled student's cross-registration.
+**Description:** Approves a pending student travel request.
 
 **Requirements:**
-- student is enrolled in the course for the term, travelRequested is true, travelApproved is false
+- requestId exists, status is 'Pending'
 
 **Effects:**
-- sets travelApproved to true and updates travelDetails
+- updates status to 'Approved'
 
 **Request Body:**
 ```json
 {
-  "student": "string",
-  "course": "string",
-  "term": "string",
-  "details": "string"
+  "requestId": "string"
 }
 ```
 
 **Success Response Body (Action):**
 ```json
-{}
+{
+  "success": "boolean"
+}
 ```
 
 **Error Response Body:**
@@ -387,30 +552,32 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/CrossRegTravel/cancelTravelRequest
+### POST /api/CrossRegTravel/denyTravel
 
-**Description:** Cancels a student's travel request for a cross-registered course.
+**Description:** Denies a pending student travel request with a reason.
 
 **Requirements:**
-- student is enrolled in the course for the term, travelRequested is true
+- requestId exists, status is 'Pending'
 
 **Effects:**
-- sets travelRequested to false, travelApproved to false, and clears travelDetails
+- updates status to 'Denied', records reason
 
 **Request Body:**
 ```json
 {
-  "student": "string",
-  "course": "string",
-  "term": "string"
+  "requestId": "string",
+  "reason": "string"
 }
 ```
 
 **Success Response Body (Action):**
 ```json
-{}
+{
+  "success": "boolean"
+}
 ```
 
 **Error Response Body:**
@@ -419,30 +586,31 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/CrossRegTravel/withdrawFromCrossRegCourse
+### POST /api/CrossRegTravel/cancelTravel
 
-**Description:** Removes a student's enrollment from a cross-registered course and clears travel related flags.
+**Description:** Cancels a student travel request that is pending or approved.
 
 **Requirements:**
-- student is enrolled in the course for the term
+- requestId exists, status is 'Pending' or 'Approved'
 
 **Effects:**
-- removes student's enrollment, sets travelRequested to false, travelApproved to false, and clears travelDetails
+- updates status to 'Cancelled'
 
 **Request Body:**
 ```json
 {
-  "student": "string",
-  "course": "string",
-  "term": "string"
+  "requestId": "string"
 }
 ```
 
 **Success Response Body (Action):**
 ```json
-{}
+{
+  "success": "boolean"
+}
 ```
 
 **Error Response Body:**
@@ -451,24 +619,23 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/CrossRegTravel/_getTravelStatus
+### POST /api/CrossRegTravel/_getTravelRequestStatus
 
-**Description:** Returns the travel request and approval status, and any approved travel details for a student's course.
+**Description:** Retrieves the status and full details of a specific travel request.
 
 **Requirements:**
-- student is enrolled in the course for the term
+- requestId exists
 
 **Effects:**
-- returns the travel request and approval status, and any approved travel details
+- returns the status and full details of the travel request
 
 **Request Body:**
 ```json
 {
-  "student": "string",
-  "course": "string",
-  "term": "string"
+  "requestId": "string"
 }
 ```
 
@@ -476,45 +643,13 @@
 ```json
 [
   {
-    "travelRequested": "boolean",
-    "travelApproved": "boolean",
-    "travelDetails": "string"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/CrossRegTravel/_listStudentsWithPendingTravel
-
-**Description:** Returns a list of students with cross-registered courses for which travel is requested but not yet approved.
-
-**Requirements:**
-- true
-
-**Effects:**
-- returns a list of students with cross-registered courses for which travel is requested but not yet approved
-
-**Request Body:**
-```json
-{}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "studentId": "string",
-    "homeCampus": "string",
-    "hostCampus": "string",
+    "status": "string",
+    "student": "string",
     "course": "string",
-    "term": "string"
+    "travelDate": "string",
+    "pickupLocation": "string",
+    "dropoffLocation": "string",
+    "reason": "string"
   }
 ]
 ```
@@ -525,154 +660,18 @@
   "error": "string"
 }
 ```
----
-# API Specification: RequirementTracker Concept
-
-**Purpose:** track a student's progress towards fulfilling academic requirements by mapping courses to requirements
 
 ---
 
-## API Endpoints
+### POST /api/CrossRegTravel/_getStudentTravelRequests
 
-### POST /api/RequirementTracker/recordCourseCompletion
-
-**Description:** Adds a course to a student's completed courses; if any requirement becomes fulfilled by this, it is recorded.
-
-**Requirements:**
-- student and course exist; student has not already completed this course
-
-**Effects:**
-- adds course to student's completed courses; if any requirement becomes fulfilled by this, it is recorded
-
-**Request Body:**
-```json
-{
-  "student": "string",
-  "course": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/RequirementTracker/removeCourseCompletion
-
-**Description:** Removes a course from a student's completed courses; if any requirement becomes unfulfilled by this, it is recorded.
-
-**Requirements:**
-- student and course exist; student has completed this course
-
-**Effects:**
-- removes course from student's completed courses; if any requirement becomes unfulfilled by this, it is recorded
-
-**Request Body:**
-```json
-{
-  "student": "string",
-  "course": "string"
-}
-```
-
-**Success Response Body (Action):
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/RequirementTracker/defineRequirement
-
-**Description:** Defines a new academic requirement with specified courses and credits.
-
-**Requirements:**
-- requirement does not exist; all courses in requiredCourses exist
-
-**Effects:**
-- defines a new academic requirement with specified courses and credits
-
-**Request Body:**
-```json
-{
-  "requirement": "string",
-  "requiredCourses": [
-    "string"
-  ],
-  "requiredCredits": "number"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/RequirementTracker/updateRequirement
-
-**Description:** Updates an existing academic requirement with new courses and credits.
-
-**Requirements:**
-- requirement exists; all courses in requiredCourses exist
-
-**Effects:**
-- updates an existing academic requirement with new courses and credits
-
-**Request Body:**
-```json
-{
-  "requirement": "string",
-  "requiredCourses": [
-    "string"
-  ],
-  "requiredCredits": "number"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/RequirementTracker/_getStudentProgress
-
-**Description:** Returns the courses completed by the student and the requirements they have fulfilled.
+**Description:** Retrieves all travel requests associated with a particular student.
 
 **Requirements:**
 - student exists
 
 **Effects:**
-- returns the courses completed by the student and the requirements they have fulfilled
+- returns all travel requests for the given student
 
 **Request Body:**
 ```json
@@ -685,12 +684,7 @@
 ```json
 [
   {
-    "completedCourses": [
-      "string"
-    ],
-    "fulfilledRequirements": [
-      "string"
-    ]
+    "requestId": "string"
   }
 ]
 ```
@@ -701,247 +695,18 @@
   "error": "string"
 }
 ```
+
 ---
 
-### POST /api/RequirementTracker/_getRequirementDetails
+### POST /api/CrossRegTravel/_getCourseTravelRequests
 
-**Description:** Returns the details of a specific requirement.
+**Description:** Retrieves all travel requests associated with a particular course.
 
 **Requirements:**
-- requirement exists
+- course exists
 
 **Effects:**
-- returns the details of a specific requirement
-
-**Request Body:**
-```json
-{
-  "requirement": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "requiredCourses": [
-      "string"
-    ],
-    "requiredCredits": "number"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-# API Specification: Schedule Concept
-
-**Purpose:** manage the assignment of courses to rooms and time slots, and allow users to view course schedules
-
----
-
-## API Endpoints
-
-### POST /api/Schedule/assignCourse
-
-**Description:** Assigns the course to the specified room and time slot.
-
-**Requirements:**
-- course, room, timeSlot exist; room has sufficient capacity for course (implicitly handled elsewhere or assumed); time slot is not already occupied by another course in that room
-
-**Effects:**
-- assigns the course to the specified room and time slot
-
-**Request Body:**
-```json
-{
-  "course": "string",
-  "room": "string",
-  "timeSlot": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/Schedule/unassignCourse
-
-**Description:** Removes the assignment of the course from its room and time slot.
-
-**Requirements:**
-- course exists and is assigned to a room and time slot
-
-**Effects:**
-- removes the assignment of the course from its room and time slot
-
-**Request Body:**
-```json
-{
-  "course": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/Schedule/addRoom
-
-**Description:** Adds a new room with specified capacity.
-
-**Requirements:**
-- room does not exist and capacity is positive
-
-**Effects:**
-- adds a new room with specified capacity
-
-**Request Body:**
-```json
-{
-  "room": "string",
-  "capacity": "number"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/Schedule/removeRoom
-
-**Description:** Removes the room.
-
-**Requirements:**
-- room exists and is not assigned to any course
-
-**Effects:**
-- removes the room
-
-**Request Body:**
-```json
-{
-  "room": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/Schedule/addTimeSlot
-
-**Description:** Adds a new time slot with specified details.
-
-**Requirements:**
-- timeSlot does not exist; startTime is before endTime
-
-**Effects:**
-- adds a new time slot with specified details
-
-**Request Body:**
-```json
-{
-  "timeSlot": "string",
-  "dayOfWeek": "string",
-  "startTime": "string",
-  "endTime": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/Schedule/removeTimeSlot
-
-**Description:** Removes the time slot.
-
-**Requirements:**
-- timeSlot exists and is not assigned to any course
-
-**Effects:**
-- removes the time slot
-
-**Request Body:**
-```json
-{
-  "timeSlot": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/Schedule/_getCourseSchedule
-
-**Description:** Returns the assigned room and time slot details for the course.
-
-**Requirements:**
-- course exists and is assigned to a room and time slot
-
-**Effects:**
-- returns the assigned room and time slot details for the course
+- returns all travel requests for the given course
 
 **Request Body:**
 ```json
@@ -954,11 +719,7 @@
 ```json
 [
   {
-    "room": "string",
-    "timeSlot": "string",
-    "dayOfWeek": "string",
-    "startTime": "string",
-    "endTime": "string"
+    "requestId": "string"
   }
 ]
 ```
@@ -969,76 +730,5 @@
   "error": "string"
 }
 ```
----
 
-### POST /api/Schedule/_getRoomAvailability
-
-**Description:** Returns the set of time slots when the room is not occupied.
-
-**Requirements:**
-- room exists
-
-**Effects:**
-- returns the set of time slots when the room is not occupied
-
-**Request Body:**
-```json
-{
-  "room": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "availableTimeSlots": [
-      "string"
-    ]
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
----
-
-### POST /api/Schedule/_getTimeSlotDetails
-
-**Description:** Returns the day of week, start time, and end time for the specified time slot.
-
-**Requirements:**
-- timeSlot exists
-
-**Effects:**
-- returns the day of week, start time, and end time for the specified time slot
-
-**Request Body:**
-```json
-{
-  "timeSlot": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "dayOfWeek": "string",
-    "startTime": "string",
-    "endTime": "string"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
 ---

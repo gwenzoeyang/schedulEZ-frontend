@@ -12,16 +12,17 @@
             type="text"
             placeholder="Search courses..."
             class="search-input"
+            @input="handleSearchInput"
           />
         </div>
         <div class="courses-list">
           <div v-if="loading" class="loading">Loading courses from MongoDB...</div>
           <div v-else-if="courses.length === 0" class="empty">
-            No courses loaded. Check console for API logs.
+            No courses found.
           </div>
           <CourseCard
-            v-for="course in filteredCourses"
-            :key="course.courseId"
+            v-for="course in courses"
+            :key="course.course || course.code"
             :course="course"
             @course-selected="showCourseDetails"
           />
@@ -51,16 +52,7 @@ const searchQuery = ref('')
 const courses = ref([])
 const enrolledCourses = ref([])
 const loading = ref(false)
-
-const filteredCourses = computed(() => {
-  if (!searchQuery.value) return courses.value
-  const query = searchQuery.value.toLowerCase()
-  return courses.value.filter(course => 
-    course.courseId?.toLowerCase().includes(query) ||
-    course.name?.toLowerCase().includes(query) ||
-    course.subject?.toLowerCase().includes(query)
-  )
-})
+const searchTimeout = ref(null)
 
 function saveScheduleName() {
   localStorage.setItem('scheduleName', scheduleName.value)
@@ -77,24 +69,43 @@ function handleCourseDrop(course) {
 async function loadCourses() {
   loading.value = true
   try {
-    console.log('Attempting to load courses from http://localhost:8000/api/CourseCatalog/_listCourses')
-    const response = await courseCatalogAPI.listCourses()
+    console.log('Attempting to load courses from MongoDB via CourseCatalog/_getAllCourses')
+    const response = await courseCatalogAPI.getAllCourses()
     console.log('=== RAW API RESPONSE ===')
-    console.log('Full response:', JSON.stringify(response, null, 2))
+    console.log('Full response:', response)
+    console.log('Stringified:', JSON.stringify(response, null, 2))
     console.log('Data type:', typeof response)
     console.log('Is array?', Array.isArray(response))
     console.log('Length:', Array.isArray(response) ? response.length : 'N/A')
     
-    // Handle the response - it should be an array of courses
+    // Handle the response - API returns array of objects with "course" property
     let courseArray = []
     if (Array.isArray(response)) {
+      // Response format: [{ "course": "string" }, ...]
+      // We need to fetch full details for each course using getCourseByCode or the course identifier
       courseArray = response
-    } else if (response && Array.isArray(response.data)) {
-      courseArray = response.data
-      console.log('Found courses in response.data')
+      
+      // If courses are just strings, we might need to fetch details
+      // For now, assume the response contains full course objects
+      if (response.length > 0 && typeof response[0] === 'object' && response[0].course) {
+        // Response format is [{ course: "..." }]
+        // We may need to fetch full details, but let's try to use what we have
+        courseArray = response.map(item => {
+          // If item has a course property that's a string, we might need the full object
+          // For now, assume the backend returns the full course objects
+          return typeof item.course === 'string' ? { course: item.course } : item
+        })
+      }
     } else if (response && typeof response === 'object') {
-      console.warn('Response is object but not array:', Object.keys(response))
-      courseArray = []
+      const keys = Object.keys(response)
+      console.warn('Response is object but not array. Keys:', keys)
+      
+      if (keys.length === 0) {
+        console.error('❌ Empty object received - backend returned Set which serialized to {}')
+        courseArray = []
+      } else {
+        courseArray = []
+      }
     } else {
       console.warn('Unexpected response format:', response)
       courseArray = []
@@ -103,75 +114,52 @@ async function loadCourses() {
     courses.value = courseArray
     console.log(`Loaded ${courseArray.length} courses from API`)
     
-    // If empty, use mock data for testing
-    if (courses.value.length === 0) {
-      console.log('WARNING: No courses from API, using mock data')
-      courses.value = [
-        {
-          courseId: 'CS101',
-          name: 'Introduction to Computer Science',
-          description: 'Fundamental concepts of programming and computer systems',
-          credits: 3,
-          subject: 'CS',
-          meets: ['Monday 9:00-10:00', 'Wednesday 9:00-10:00'],
-          prerequisites: []
-        },
-        {
-          courseId: 'MATH101',
-          name: 'Calculus I',
-          description: 'Limits, derivatives, and integrals',
-          credits: 4,
-          subject: 'Math',
-          meets: ['Tuesday 10:00-11:00', 'Thursday 10:00-11:00'],
-          prerequisites: []
-        },
-        {
-          courseId: 'ENG101',
-          name: 'English Composition',
-          description: 'Writing and communication skills',
-          credits: 3,
-          subject: 'English',
-          meets: ['Monday 11:00-12:00', 'Wednesday 11:00-12:00', 'Friday 11:00-12:00'],
-          prerequisites: []
-        }
-      ]
-    }
   } catch (error) {
     console.error('Error loading courses:', error)
-    // Use mock data on error
-    console.log('Using fallback mock data due to error')
-    courses.value = [
-      {
-        courseId: 'CS101',
-        name: 'Introduction to Computer Science',
-        description: 'Fundamental concepts of programming and computer systems',
-        credits: 3,
-        subject: 'CS',
-        meets: ['Monday 9:00-10:00', 'Wednesday 9:00-10:00'],
-        prerequisites: []
-      },
-      {
-        courseId: 'MATH101',
-        name: 'Calculus I',
-          description: 'Limits, derivatives, and integrals',
-        credits: 4,
-        subject: 'Math',
-        meets: ['Tuesday 10:00-11:00', 'Thursday 10:00-11:00'],
-        prerequisites: []
-      },
-      {
-        courseId: 'ENG101',
-        name: 'English Composition',
-        description: 'Writing and communication skills',
-        credits: 3,
-        subject: 'English',
-        meets: ['Monday 11:00-12:00', 'Wednesday 11:00-12:00', 'Friday 11:00-12:00'],
-        prerequisites: []
-      }
-    ]
+    courses.value = []
   } finally {
     loading.value = false
   }
+}
+
+async function searchCourses(query) {
+  if (!query || query.trim() === '') {
+    // If search is empty, load all courses
+    await loadCourses()
+    return
+  }
+  
+  loading.value = true
+  try {
+    console.log('Searching courses with query:', query)
+    const response = await courseCatalogAPI.searchCourses(query)
+    console.log('Search response:', response)
+    
+    let courseArray = []
+    if (Array.isArray(response)) {
+      courseArray = response
+    }
+    
+    courses.value = courseArray
+    console.log(`Found ${courseArray.length} courses matching "${query}"`)
+    
+  } catch (error) {
+    console.error('Error searching courses:', error)
+    courses.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+function handleSearchInput() {
+  // Debounce search to avoid too many API calls
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value)
+  }
+  
+  searchTimeout.value = setTimeout(() => {
+    searchCourses(searchQuery.value)
+  }, 500) // Wait 500ms after user stops typing
 }
 
 onMounted(() => {

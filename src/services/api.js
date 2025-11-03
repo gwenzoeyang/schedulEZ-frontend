@@ -26,6 +26,16 @@ async function apiRequest(endpoint, body = {}) {
       throw new Error(data.error || `API request failed: ${response.statusText}`)
     }
 
+    // Handle Set responses - check if this might be a serialized Set and convert to array
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      console.log('Response is object, checking for Set-like structure')
+      // If backend returns Set, try to convert it
+      if (data.constructor?.name === 'Object' && Object.keys(data).length === 0) {
+        console.warn('Received empty object - might be a Set that was serialized incorrectly')
+        return []
+      }
+    }
+
     return data
   } catch (error) {
     console.error(`API request failed for ${endpoint}:`, error)
@@ -33,69 +43,41 @@ async function apiRequest(endpoint, body = {}) {
   }
 }
 
-// CourseCatalog API
+// CourseCatalog API - Updated to match new API spec
 export const courseCatalogAPI = {
   addCourse: (courseData) => apiRequest('/api/CourseCatalog/addCourse', courseData),
+  updateCourseDetails: (courseData) => apiRequest('/api/CourseCatalog/updateCourseDetails', courseData),
   removeCourse: (course) => apiRequest('/api/CourseCatalog/removeCourse', { course }),
-  offerCourse: (course, term) => apiRequest('/api/CourseCatalog/offerCourse', { course, term }),
-  unofferCourse: (course, term) => apiRequest('/api/CourseCatalog/unofferCourse', { course, term }),
-  addPrerequisite: (course, prerequisite) => apiRequest('/api/CourseCatalog/addPrerequisite', { course, prerequisite }),
-  removePrerequisite: (course, prerequisite) => apiRequest('/api/CourseCatalog/removePrerequisite', { course, prerequisite }),
-  getCourse: (course) => apiRequest('/api/CourseCatalog/_getCourse', { course }),
-  listCourses: () => apiRequest('/api/CourseCatalog/_listCourses', {}),
-  listOfferedCourses: (term) => apiRequest('/api/CourseCatalog/_listOfferedCourses', { term })
+  getAllCourses: () => apiRequest('/api/CourseCatalog/_getAllCourses', {}),
+  getCourseByCode: (code) => apiRequest('/api/CourseCatalog/_getCourseByCode', { code }),
+  searchCourses: (query) => apiRequest('/api/CourseCatalog/_searchCourses', { query }),
+  getCoursePrerequisites: (course) => apiRequest('/api/CourseCatalog/_getCoursePrerequisites', { course }),
+  getCourseCorequisites: (course) => apiRequest('/api/CourseCatalog/_getCourseCorequisites', { course })
 }
 
-// CrossRegTravel API
-export const crossRegTravelAPI = {
-  enrollInCrossRegCourse: (enrollmentData) => apiRequest('/api/CrossRegTravel/enrollInCrossRegCourse', enrollmentData),
-  approveTravel: (approvalData) => apiRequest('/api/CrossRegTravel/approveTravel', approvalData),
-  cancelTravelRequest: (courseData) => apiRequest('/api/CrossRegTravel/cancelTravelRequest', courseData),
-  withdrawFromCrossRegCourse: (courseData) => apiRequest('/api/CrossRegTravel/withdrawFromCrossRegCourse', courseData),
-  getTravelStatus: (student, course, term) => apiRequest('/api/CrossRegTravel/_getTravelStatus', { student, course, term }),
-  listStudentsWithPendingTravel: () => apiRequest('/api/CrossRegTravel/_listStudentsWithPendingTravel', {})
-}
-
-// RequirementTracker API
-export const requirementTrackerAPI = {
-  recordCourseCompletion: (student, course) => apiRequest('/api/RequirementTracker/recordCourseCompletion', { student, course }),
-  removeCourseCompletion: (student, course) => apiRequest('/api/RequirementTracker/removeCourseCompletion', { student, course }),
-  defineRequirement: (requirement, requiredCourses, requiredCredits) => apiRequest('/api/RequirementTracker/defineRequirement', { 
-    requirement, 
-    requiredCourses, 
-    requiredCredits 
-  }),
-  updateRequirement: (requirement, requiredCourses, requiredCredits) => apiRequest('/api/RequirementTracker/updateRequirement', { 
-    requirement, 
-    requiredCourses, 
-    requiredCredits 
-  }),
-  getStudentProgress: (student) => apiRequest('/api/RequirementTracker/_getStudentProgress', { student }),
-  getRequirementDetails: (requirement) => apiRequest('/api/RequirementTracker/_getRequirementDetails', { requirement })
-}
-
-// Schedule API
+// Schedule API - Updated to match new API spec
 export const scheduleAPI = {
-  assignCourse: (course, room, timeSlot) => apiRequest('/api/Schedule/assignCourse', { course, room, timeSlot }),
-  unassignCourse: (course) => apiRequest('/api/Schedule/unassignCourse', { course }),
-  addRoom: (room, capacity) => apiRequest('/api/Schedule/addRoom', { room, capacity }),
-  removeRoom: (room) => apiRequest('/api/Schedule/removeRoom', { room }),
-  addTimeSlot: (timeSlot, dayOfWeek, startTime, endTime) => apiRequest('/api/Schedule/addTimeSlot', { 
-    timeSlot, 
-    dayOfWeek, 
-    startTime, 
-    endTime 
-  }),
-  removeTimeSlot: (timeSlot) => apiRequest('/api/Schedule/removeTimeSlot', { timeSlot }),
-  getCourseSchedule: (course) => apiRequest('/api/Schedule/_getCourseSchedule', { course }),
-  getRoomAvailability: (room) => apiRequest('/api/Schedule/_getRoomAvailability', { room }),
-  getTimeSlotDetails: (timeSlot) => apiRequest('/api/Schedule/_getTimeSlotDetails', { timeSlot })
+  createSchedule: (scheduleData) => apiRequest('/api/Schedule/createSchedule', scheduleData),
+  updateSchedule: (scheduleData) => apiRequest('/api/Schedule/updateSchedule', scheduleData),
+  deleteSchedule: (schedule) => apiRequest('/api/Schedule/deleteSchedule', { schedule }),
+  getScheduleById: (schedule) => apiRequest('/api/Schedule/_getScheduleById', { schedule }),
+  findSchedules: (criteria) => apiRequest('/api/Schedule/_findSchedules', criteria)
+}
+
+// CrossRegTravel API - Updated to match new API spec
+export const crossRegTravelAPI = {
+  requestTravel: (travelData) => apiRequest('/api/CrossRegTravel/requestTravel', travelData),
+  approveTravel: (requestId) => apiRequest('/api/CrossRegTravel/approveTravel', { requestId }),
+  denyTravel: (requestId, reason) => apiRequest('/api/CrossRegTravel/denyTravel', { requestId, reason }),
+  cancelTravel: (requestId) => apiRequest('/api/CrossRegTravel/cancelTravel', { requestId }),
+  getTravelRequestStatus: (requestId) => apiRequest('/api/CrossRegTravel/_getTravelRequestStatus', { requestId }),
+  getStudentTravelRequests: (student) => apiRequest('/api/CrossRegTravel/_getStudentTravelRequests', { student }),
+  getCourseTravelRequests: (course) => apiRequest('/api/CrossRegTravel/_getCourseTravelRequests', { course })
 }
 
 export default {
   courseCatalog: courseCatalogAPI,
-  crossRegTravel: crossRegTravelAPI,
-  requirementTracker: requirementTrackerAPI,
-  schedule: scheduleAPI
+  schedule: scheduleAPI,
+  crossRegTravel: crossRegTravelAPI
 }
 

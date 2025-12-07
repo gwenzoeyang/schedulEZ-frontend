@@ -1,12 +1,15 @@
 <template>
   <div 
     class="schedule-grid"
-    @drop="handleDrop"
+    @drop.prevent="handleDrop"
     @dragover.prevent
+    @dragenter.prevent
   >
     <div class="grid-header">
-      <div class="time-col"></div>
-      <div v-for="day in days" :key="day" class="day-col">{{ day }}</div>
+      <div class="time-col">Time</div>
+      <div v-for="day in days" :key="day.abbrev" class="day-col">
+        {{ day.full }}
+      </div>
     </div>
     
     <div class="grid-body">
@@ -14,16 +17,38 @@
         <div class="time-label">{{ formatHour(hour) }}</div>
         <div 
           v-for="day in days" 
-          :key="`${day}-${hour}`"
+          :key="`${day.abbrev}-${hour}`"
           class="time-cell"
+          :data-day="day.abbrev"
+          :data-hour="hour"
         >
           <div 
-            v-for="course in getCourseAt(day, hour)" 
-            :key="course.code || course.courseId || course.course"
-            class="course-block"
+            v-for="(item, index) in getItemsStartingAt(day.abbrev, hour)" 
+            :key="item.id || getItemId(item) + '-' + index"
+            :class="['schedule-block', { 'bus-block': item.type === 'bus' }]"
+            :style="getItemStyle(item, day.abbrev, hour, index, getOverlapCount(day.abbrev, hour))"
+            :title="getItemTooltip(item)"
+            @click="handleItemClick(item)"
           >
-            {{ course.code || course.courseId || course.course }}
+            <div v-if="item.type === 'bus'" class="bus-icon">🚌</div>
+            <div class="block-code">{{ getDisplayCode(item) }}</div>
+            <div class="block-name">{{ truncate(getDisplayName(item)) }}</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="floatingItems.length > 0" class="floating-items">
+      <h4>📌 Items (No Time Set)</h4>
+      <div class="floating-list">
+        <div 
+          v-for="item in floatingItems" 
+          :key="item.id || getItemId(item)"
+          :class="['floating-item', { 'bus-item': item.type === 'bus' }]"
+          @click="handleItemClick(item)"
+        >
+          <div class="block-code">{{ getDisplayCode(item) }}</div>
+          <div class="block-name">{{ item.title || item.name }}</div>
         </div>
       </div>
     </div>
@@ -31,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, watch } from 'vue'
 
 const props = defineProps({
   enrolledCourses: {
@@ -40,111 +65,323 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['course-dropped'])
+// Debug: watch for prop changes
+watch(() => props.enrolledCourses, (newVal) => {
+  console.log('📋 ScheduleGrid received enrolledCourses:', newVal.length, 'items')
+  newVal.forEach(item => {
+    console.log('📋 Item:', getItemId(item), 'meetingTimes:', item.meetingTimes)
+  })
+}, { immediate: true, deep: true })
 
-const days = ['M', 'T', 'W', 'Th', 'F']
-const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+const emit = defineEmits(['course-dropped', 'course-clicked'])
 
-function formatHour(hour) {
-  return hour % 12 || 12
+const days = [
+  { abbrev: 'M', full: 'Monday' },
+  { abbrev: 'T', full: 'Tuesday' },
+  { abbrev: 'W', full: 'Wednesday' },
+  { abbrev: 'R', full: 'Thursday' },
+  { abbrev: 'F', full: 'Friday' }
+]
+
+const hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+
+function getItemId(item) {
+  return item.id || item.courseID || item.courseId || item.code || item.course || 'Unknown'
 }
 
-function getCourseAt(day, hour) {
-  return props.enrolledCourses.filter(course => {
-    // New format: course.schedule is a string like "MW 9:00-10:00 Room 101"
-    // Old format: course.meets is an array like ["Monday 9:00-10:00"]
-    
-    if (course.schedule) {
-      return parseScheduleString(course.schedule, day, hour)
-    } else if (course.meets && Array.isArray(course.meets)) {
-      // Handle old format for backward compatibility
-      return course.meets.some(meet => {
-        const lowerMeet = meet.toLowerCase()
-        const dayMatch = lowerMeet.includes(day.toLowerCase()) || 
-                         lowerMeet.includes(getFullDayName(day))
-        const hourMatch = lowerMeet.includes(`${hour}:`) || 
-                         lowerMeet.includes(`${formatHour(hour)}:`)
-        return dayMatch && hourMatch
-      })
+function getDisplayCode(item) {
+  if (item.type === 'bus') {
+    return item.departureTime
+  }
+  return item.courseID || item.courseId || item.code || item.course || 'Unknown'
+}
+
+function getDisplayName(item) {
+  if (item.type === 'bus') {
+    return item.title || `${item.origin} → ${item.destination}`
+  }
+  return item.title || item.name || ''
+}
+
+function getItemTooltip(item) {
+  if (item.type === 'bus') {
+    return `Bus: ${item.origin} → ${item.destination}\n${item.departureTime} - ${item.arrivalTime}`
+  }
+  return `${item.title || item.name}\n${item.instructor || ''}`
+}
+
+function formatHour(hour) {
+  if (hour === 0) return '12 AM'
+  if (hour < 12) return `${hour} AM`
+  if (hour === 12) return '12 PM'
+  return `${hour - 12} PM`
+}
+
+function truncate(text, length = 16) {
+  if (!text) return ''
+  return text.length > length ? text.substring(0, length) + '...' : text
+}
+
+const scheduledItems = computed(() => {
+  console.log('🗓️ Computing scheduledItems from', props.enrolledCourses.length, 'courses')
+  const items = props.enrolledCourses.filter(item => {
+    const hasMeetingTimes = item.meetingTimes && 
+           Array.isArray(item.meetingTimes) && 
+           item.meetingTimes.length > 0
+    console.log('🗓️ Course:', getItemId(item), 'hasMeetingTimes:', hasMeetingTimes, 'meetingTimes:', item.meetingTimes)
+    return hasMeetingTimes
+  })
+  console.log('🗓️ scheduledItems result:', items.length, 'items')
+  return items
+})
+
+const floatingItems = computed(() => {
+  return props.enrolledCourses.filter(item => {
+    return !item.meetingTimes || 
+           !Array.isArray(item.meetingTimes) || 
+           item.meetingTimes.length === 0
+  })
+})
+
+function parseTime(timeStr) {
+  if (!timeStr) return null
+  
+  // Try 24-hour format first: "14:30"
+  let match = timeStr.match(/^(\d{1,2}):(\d{2})$/)
+  if (match) {
+    const result = {
+      hour: parseInt(match[1]),
+      minute: parseInt(match[2])
     }
-    return false
+    console.log('⏰ parseTime (24h):', timeStr, '→', result)
+    return result
+  }
+  
+  // Try 12-hour format with AM/PM: "9:55 AM" or "2:20 PM"
+  match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (match) {
+    let hour = parseInt(match[1])
+    const minute = parseInt(match[2])
+    const period = match[3].toUpperCase()
+    
+    // Convert to 24-hour format
+    if (period === 'PM' && hour !== 12) {
+      hour += 12
+    } else if (period === 'AM' && hour === 12) {
+      hour = 0
+    }
+    
+    const result = { hour, minute }
+    console.log('⏰ parseTime (12h):', timeStr, '→', result)
+    return result
+  }
+  
+  console.log('⏰ parseTime FAILED for:', timeStr)
+  return null
+}
+
+function getMeetingTimeForDay(item, day) {
+  if (!item.meetingTimes || !Array.isArray(item.meetingTimes)) {
+    return null
+  }
+  return item.meetingTimes.find(mt => mt.day === day)
+}
+
+function getItemsAtHour(day, hour) {
+  return scheduledItems.value.filter(item => {
+    const mt = getMeetingTimeForDay(item, day)
+    if (!mt) return false
+    
+    const startTime = parseTime(mt.start)
+    const endTime = parseTime(mt.end)
+    if (!startTime || !endTime) return false
+    
+    const startMinutes = startTime.hour * 60 + startTime.minute
+    const endMinutes = endTime.hour * 60 + endTime.minute
+    const hourStart = hour * 60
+    const hourEnd = (hour + 1) * 60
+    
+    return startMinutes < hourEnd && endMinutes > hourStart
   })
 }
 
-function parseScheduleString(schedule, day, hour) {
-  if (!schedule) return false
+function getItemsStartingAt(day, hour) {
+  const result = scheduledItems.value.filter(item => {
+    const mt = getMeetingTimeForDay(item, day)
+    if (!mt) return false
+    
+    const startTime = parseTime(mt.start)
+    if (!startTime) {
+      console.log('⚠️ parseTime failed for:', mt.start)
+      return false
+    }
+    
+    const matches = startTime.hour === hour
+    if (matches) {
+      console.log('✅ Found item at', day, hour, ':', getItemId(item))
+    }
+    return matches
+  })
+  return result
+}
+
+function getOverlapCount(day, hour) {
+  const itemsStartingHere = getItemsStartingAt(day, hour)
+  let maxOverlap = itemsStartingHere.length
   
-  const lowerSchedule = schedule.toLowerCase()
-  const dayName = getFullDayName(day).toLowerCase()
-  const dayAbbrev = day.toLowerCase()
-  
-  // Check if day matches (could be full name or abbreviation)
-  const dayMatch = lowerSchedule.includes(dayName) || 
-                   lowerSchedule.includes(dayAbbrev) ||
-                   (day === 'Th' && lowerSchedule.includes('thursday')) ||
-                   (day === 'M' && lowerSchedule.includes('monday')) ||
-                   (day === 'T' && lowerSchedule.includes('tuesday')) ||
-                   (day === 'W' && lowerSchedule.includes('wednesday')) ||
-                   (day === 'F' && lowerSchedule.includes('friday'))
-  
-  if (!dayMatch) return false
-  
-  // Try to parse time from schedule string
-  // Formats could be: "9:00-10:00", "9am-10am", "09:00-10:00", etc.
-  const timePatterns = [
-    /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/,  // "9:00-10:00"
-    /(\d{1,2})\s*am\s*-\s*(\d{1,2})\s*am/i,        // "9am-10am"
-    /(\d{1,2})\s*pm\s*-\s*(\d{1,2})\s*pm/i,        // "9pm-10pm"
-  ]
-  
-  for (const pattern of timePatterns) {
-    const match = schedule.match(pattern)
-    if (match) {
-      let startHour = parseInt(match[1])
-      const startMin = parseInt(match[2] || 0)
-      
-      // Handle AM/PM
-      if (pattern.toString().includes('pm') && match[0].toLowerCase().includes('pm')) {
-        if (startHour < 12) startHour += 12
-      }
-      if (pattern.toString().includes('am') && match[0].toLowerCase().includes('am')) {
-        if (startHour === 12) startHour = 0
-      }
-      
-      // Check if the hour matches (within the time range)
-      if (startHour === hour || (startHour <= hour && hour < startHour + 1)) {
-        return true
+  for (const item of itemsStartingHere) {
+    const mt = getMeetingTimeForDay(item, day)
+    if (!mt) continue
+    
+    const startTime = parseTime(mt.start)
+    const endTime = parseTime(mt.end)
+    if (!startTime || !endTime) continue
+    
+    for (let h = startTime.hour; h < endTime.hour + 1; h++) {
+      const overlapping = getItemsAtHour(day, h)
+      if (overlapping.length > maxOverlap) {
+        maxOverlap = overlapping.length
       }
     }
   }
   
-  // Fallback: check if hour number appears in schedule string
-  if (lowerSchedule.includes(`${hour}:`) || lowerSchedule.includes(`${formatHour(hour)}:`)) {
-    return true
-  }
-  
-  return false
+  return maxOverlap
 }
 
-function getFullDayName(abbrev) {
-  const map = {
-    'M': 'monday',
-    'T': 'tuesday', 
-    'W': 'wednesday',
-    'Th': 'thursday',
-    'F': 'friday'
+function getOverlapIndex(item, day) {
+  const mt = getMeetingTimeForDay(item, day)
+  if (!mt) return 0
+  
+  const startTime = parseTime(mt.start)
+  if (!startTime) return 0
+  
+  const endTime = parseTime(mt.end)
+  if (!endTime) return 0
+  
+  const overlappingItems = scheduledItems.value.filter(other => {
+    const otherMt = getMeetingTimeForDay(other, day)
+    if (!otherMt) return false
+    
+    const otherStart = parseTime(otherMt.start)
+    const otherEnd = parseTime(otherMt.end)
+    if (!otherStart || !otherEnd) return false
+    
+    const startMinutes = startTime.hour * 60 + startTime.minute
+    const endMinutes = endTime.hour * 60 + endTime.minute
+    const otherStartMinutes = otherStart.hour * 60 + otherStart.minute
+    const otherEndMinutes = otherEnd.hour * 60 + otherEnd.minute
+    
+    return startMinutes < otherEndMinutes && endMinutes > otherStartMinutes
+  })
+  
+  overlappingItems.sort((a, b) => getItemId(a).localeCompare(getItemId(b)))
+  
+  return overlappingItems.findIndex(c => getItemId(c) === getItemId(item))
+}
+
+function getItemStyle(item, day, hour, indexInCell, overlapCount) {
+  const mt = getMeetingTimeForDay(item, day)
+  if (!mt) return {}
+  
+  const startTime = parseTime(mt.start)
+  const endTime = parseTime(mt.end)
+  
+  if (!startTime || !endTime) return {}
+  
+  const startMinutes = startTime.hour * 60 + startTime.minute
+  const endMinutes = endTime.hour * 60 + endTime.minute
+  const durationMinutes = endMinutes - startMinutes
+  const durationHours = durationMinutes / 60
+  
+  const topOffset = (startTime.minute / 60) * 45
+  const height = Math.max(durationHours * 45, 22)
+  
+  const overlapIndex = getOverlapIndex(item, day)
+  const totalOverlapping = Math.max(overlapCount, getOverlappingCount(item, day))
+  
+  const widthPercent = 100 / totalOverlapping
+  const leftPercent = overlapIndex * widthPercent
+  
+  return {
+    position: 'absolute',
+    top: `${topOffset}px`,
+    height: `${height}px`,
+    left: `calc(${leftPercent}% + 1px)`,
+    width: `calc(${widthPercent}% - 2px)`,
+    zIndex: 5 + overlapIndex
   }
-  return map[abbrev] || ''
+}
+
+function getOverlappingCount(item, day) {
+  const mt = getMeetingTimeForDay(item, day)
+  if (!mt) return 1
+  
+  const startTime = parseTime(mt.start)
+  const endTime = parseTime(mt.end)
+  if (!startTime || !endTime) return 1
+  
+  const startMinutes = startTime.hour * 60 + startTime.minute
+  const endMinutes = endTime.hour * 60 + endTime.minute
+  
+  const overlapping = scheduledItems.value.filter(other => {
+    const otherMt = getMeetingTimeForDay(other, day)
+    if (!otherMt) return false
+    
+    const otherStart = parseTime(otherMt.start)
+    const otherEnd = parseTime(otherMt.end)
+    if (!otherStart || !otherEnd) return false
+    
+    const otherStartMinutes = otherStart.hour * 60 + otherStart.minute
+    const otherEndMinutes = otherEnd.hour * 60 + otherEnd.minute
+    
+    return startMinutes < otherEndMinutes && endMinutes > otherStartMinutes
+  })
+  
+  return overlapping.length
 }
 
 function handleDrop(e) {
-  e.preventDefault()
-  try {
-    const courseData = JSON.parse(e.dataTransfer.getData('application/json'))
-    emit('course-dropped', courseData)
-  } catch (error) {
-    console.error('Error handling drop:', error)
+  console.log('📥 Drop event received!')
+  
+  // Try to get data from dataTransfer
+  let rawData = e.dataTransfer.getData('application/json')
+  if (!rawData) {
+    rawData = e.dataTransfer.getData('text/plain')
   }
+  if (!rawData) {
+    rawData = e.dataTransfer.getData('text')
+  }
+  
+  console.log('📥 Raw data:', rawData)
+  
+  if (!rawData) {
+    console.error('📥 No data received in drop!')
+    return
+  }
+  
+  try {
+    const data = JSON.parse(rawData)
+    console.log('📥 Parsed data:', data)
+    
+    // Check if it's an array of bus trips
+    if (Array.isArray(data)) {
+      console.log('📥 Processing array of', data.length, 'items')
+      for (const item of data) {
+        console.log('📥 Emitting item:', item)
+        emit('course-dropped', item)
+      }
+    } else {
+      // Single item (course or single bus trip)
+      console.log('📥 Emitting single item:', data)
+      emit('course-dropped', data)
+    }
+  } catch (error) {
+    console.error('📥 Error parsing drop data:', error)
+  }
+}
+
+function handleItemClick(item) {
+  emit('course-clicked', item)
 }
 </script>
 
@@ -152,68 +389,255 @@ function handleDrop(e) {
 .schedule-grid {
   flex: 1;
   background: white;
-  border-radius: 8px;
-  padding: 1rem;
+  border: none;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .grid-header {
   display: grid;
   grid-template-columns: 60px repeat(5, 1fr);
-  border-bottom: 2px solid #ccc;
-  margin-bottom: 0;
+  background: #012169;
+  border-bottom: 2px solid #012169;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
+.time-col,
 .day-col {
+  padding: 0.25rem;
   text-align: center;
-  font-weight: bold;
-  padding: 0.5rem;
-  border-right: 1px dotted #ccc;
-  color: #666;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 0.75rem;
+}
+
+.day-col:last-child {
+  border-right: none;
 }
 
 .grid-body {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
 }
 
 .time-row {
   display: grid;
   grid-template-columns: 60px repeat(5, 1fr);
+  min-height: 45px;
+  border-bottom: 1px solid #eee;
+}
+
+.time-row:last-child {
+  border-bottom: none;
 }
 
 .time-label {
-  font-size: 0.9rem;
-  color: #999;
-  text-align: right;
-  padding: 0.5rem;
-  border-right: 2px solid #ccc;
+  padding: 0.1rem;
+  font-size: 0.65rem;
+  color: #012169;
+  background: white;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  border-right: 1px solid #e0e0e0;
+  font-weight: 500;
 }
 
 .time-cell {
-  min-height: 60px;
-  border-left: 1px dotted #ccc;
-  border-top: 1px dotted #ccc;
+  border-right: 1px solid #eee;
   position: relative;
-  padding: 0.25rem;
+  min-height: 45px;
 }
 
 .time-cell:last-child {
-  border-right: 1px dotted #ccc;
+  border-right: none;
 }
 
-.time-row:last-child .time-cell {
-  border-bottom: 1px dotted #ccc;
+.time-cell:hover {
+  background: #f8fafc;
 }
 
-.course-block {
-  background: #42b983;
-  color: white;
-  padding: 0.5rem;
+/* Course blocks - solid white with dark blue border */
+.schedule-block {
+  background: white;
+  border: 2px solid #012169;
   border-radius: 4px;
-  font-weight: 500;
-  font-size: 0.9rem;
+  padding: 0.3rem;
+  font-size: 0.7rem;
   cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.schedule-block:hover {
+  background: #f0f4f8;
+  box-shadow: 0 2px 8px rgba(1, 33, 105, 0.3);
+  z-index: 20 !important;
+}
+
+.schedule-block .block-code {
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #012169;
+  margin-bottom: 0.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.schedule-block .block-name {
+  font-size: 0.65rem;
+  color: #333;
+  line-height: 1.2;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Bus blocks - striped light blue with dark blue border */
+.schedule-block.bus-block {
+  background: repeating-linear-gradient(
+    45deg,
+    #e8eef6,
+    #e8eef6 6px,
+    #d0ddef 6px,
+    #d0ddef 12px
+  );
+  border: 2px solid #012169;
+  border-radius: 4px;
+}
+
+.schedule-block.bus-block:hover {
+  background: repeating-linear-gradient(
+    45deg,
+    #d0ddef,
+    #d0ddef 6px,
+    #b8c9e0 6px,
+    #b8c9e0 12px
+  );
+  box-shadow: 0 2px 8px rgba(1, 33, 105, 0.3);
+}
+
+.schedule-block.bus-block .block-code {
+  color: #012169;
+}
+
+.schedule-block.bus-block .block-name {
+  color: #012169;
+}
+
+.bus-icon {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+/* Floating items */
+.floating-items {
+  border-top: 2px solid #e0e0e0;
+  padding: 0.5rem;
+  background: white;
+}
+
+.floating-items h4 {
+  margin: 0 0 0.5rem 0;
+  color: #012169;
+  font-size: 0.85rem;
+}
+
+.floating-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.floating-item {
+  background: white;
+  border: 2px dashed #012169;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  min-width: 120px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.floating-item:hover {
+  border-style: solid;
+  background: #f8f8f8;
+}
+
+.floating-item.bus-item {
+  border-color: #012169;
+  background: repeating-linear-gradient(
+    45deg,
+    #e8eef6,
+    #e8eef6 6px,
+    #d0ddef 6px,
+    #d0ddef 12px
+  );
+}
+
+.floating-item.bus-item:hover {
+  background: repeating-linear-gradient(
+    45deg,
+    #d0ddef,
+    #d0ddef 6px,
+    #b8c9e0 6px,
+    #b8c9e0 12px
+  );
+}
+
+.floating-item .block-code {
+  font-weight: 600;
+  color: #012169;
+  font-size: 0.8rem;
+}
+
+.floating-item.bus-item .block-code {
+  color: #012169;
+}
+
+.floating-item .block-name {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 0.15rem;
+}
+
+@media (max-width: 900px) {
+  .grid-header,
+  .time-row {
+    grid-template-columns: 50px repeat(5, 1fr);
+  }
+
+  .time-col,
+  .day-col,
+  .time-label {
+    padding: 0.25rem;
+    font-size: 0.65rem;
+  }
+
+  .time-cell {
+    min-height: 40px;
+  }
+
+  .schedule-block {
+    padding: 0.15rem;
+  }
+
+  .schedule-block .block-code {
+    font-size: 0.6rem;
+  }
+
+  .schedule-block .block-name {
+    font-size: 0.5rem;
+  }
 }
 </style>
-

@@ -181,30 +181,21 @@
       
       // Get list of enrolled course IDs to exclude
       const enrolledIds = props.enrolledCourses.map(c => getItemId(c)).filter(Boolean)
-      console.log('🤖 Enrolled course IDs to exclude:', enrolledIds)
   
-      // NOTE: setAIPreferences and suggestCourse are not in the current API spec (api.md)
-      // These may be custom features that the backend still supports.
-      // If these methods fail, this feature will need to be disabled or the backend updated.
-      const hasPreferences = preferences.value.major || interests.length > 0 || preferences.value.availability.length > 0
-      
-      // TODO: These methods (setAIPreferences, suggestCourse) are not in the new API spec
-      // Uncomment if the backend still supports them, or implement alternative approach
-      /*
-      if (hasPreferences) {
-        await scheduleAPI.setAIPreferences({
-          userId,
-          major: preferences.value.major || 'Undeclared',
-          interests: interests.length > 0 ? interests : ['General'],
-          availability: preferences.value.availability.length > 0 ? preferences.value.availability : ['M', 'T', 'W', 'R', 'F']
-        })
-      }
-      
+      // Always set AI preferences (with defaults if not provided)
+      await scheduleAPI.setAIPreferences({
+        userId,
+        major: preferences.value.major || 'Undeclared',
+        interests: interests.length > 0 ? interests : ['General'],
+        availability: preferences.value.availability.length > 0 ? preferences.value.availability : ['M', 'T', 'W', 'R', 'F']
+      })
+  
+      // Pass enrolled IDs so backend can exclude them
       const response = await scheduleAPI.suggestCourse({ 
         userId,
         excludeCourseIds: enrolledIds
       })
-      
+  
       if (response.success && response.suggestion) {
         recommendation.value = response.suggestion
       } else if (response.allCoursesEnrolled) {
@@ -212,10 +203,6 @@
       } else {
         error.value = 'No suitable course found. Try adjusting your preferences.'
       }
-      */
-      
-      // Temporary: Show error since API methods don't exist in spec
-      error.value = 'AI recommendation feature is not available in the current API specification. Please check with the backend team.'
   
     } catch (err) {
       console.error('Error getting recommendation:', err)

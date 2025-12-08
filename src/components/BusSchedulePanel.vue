@@ -287,14 +287,10 @@
   }
   
   function onDragStart(event, tripData) {
-    console.log('🚌 Drag started:', tripData)
-    console.log('🚌 Selected days:', selectedDays.value)
-    
     // Create trip objects for all selected days
     const tripObjects = selectedDays.value.map(day => createSingleTrip(tripData, day))
     
     const payload = JSON.stringify(tripObjects)
-    console.log('🚌 Drag payload:', payload)
     
     event.dataTransfer.effectAllowed = 'copy'
     event.dataTransfer.setData('text/plain', payload)
@@ -302,12 +298,9 @@
   }
   
   function onTripClick(tripData) {
-    console.log('🚌 Trip clicked:', tripData)
-    
     // Emit a trip for each selected day
     for (const day of selectedDays.value) {
       const trip = createSingleTrip(tripData, day)
-      console.log('🚌 Emitting trip:', trip)
       emit('add-trip', trip)
     }
   }

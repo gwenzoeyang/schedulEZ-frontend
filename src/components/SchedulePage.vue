@@ -329,7 +329,6 @@ const modalMode = ref('add')
 
 // Combined list of courses and bus trips for the grid
 const enrolledItems = computed(() => {
-  console.log('📊 Computing enrolledItems:', enrolledCourses.value.length, 'courses,', busTrips.value.length, 'bus trips')
   return [...enrolledCourses.value, ...busTrips.value]
 })
 
@@ -485,7 +484,6 @@ function saveAllSchedules() {
     schedules: schedules.value,
     currentScheduleId: currentScheduleId.value
   }
-  console.log('💾 Saving schedules. Courses in current:', currentSchedule.value?.courses?.length || 0)
   localStorage.setItem('schedulez-data', JSON.stringify(data))
 }
 
@@ -537,14 +535,7 @@ function getItemId(item) {
 function addCourseToSchedule(course) {
   if (!currentSchedule.value) return
   
-  console.log('➕ Full course object:', JSON.stringify(course, null, 2))
-  console.log('➕ meetingTimes:', course.meetingTimes)
-  console.log('➕ DBmeetingTimes:', course.DBmeetingTimes)
-  
   const courseId = getItemId(course)
-  console.log('➕ Adding course with ID:', courseId)
-  console.log('➕ Current schedule courses count:', currentSchedule.value.courses.length)
-  console.log('➕ Current courses IDs:', currentSchedule.value.courses.map(c => getItemId(c)))
   
   // Filter out any undefined/null entries that might have snuck in
   currentSchedule.value.courses = currentSchedule.value.courses.filter(c => c && getItemId(c))
@@ -552,8 +543,6 @@ function addCourseToSchedule(course) {
   const alreadyEnrolled = currentSchedule.value.courses.some(
     c => getItemId(c) === courseId
   )
-  
-  console.log('➕ Already enrolled?', alreadyEnrolled)
   
   if (alreadyEnrolled) {
     alert('This course is already in your schedule!')
@@ -564,13 +553,9 @@ function addCourseToSchedule(course) {
   currentSchedule.value.courses = [...currentSchedule.value.courses, course]
   saveAllSchedules()
   closeModal()
-  
-  console.log('➕ After adding, courses count:', currentSchedule.value.courses.length)
 }
 
 function addBusTrip(trip) {
-  console.log('🚌 addBusTrip called with:', trip)
-  
   if (!currentSchedule.value) return
   
   // Check for duplicate (same route, time, and day)
@@ -582,7 +567,6 @@ function addBusTrip(trip) {
   )
   
   if (isDuplicate) {
-    console.log('🚌 Duplicate trip, skipping')
     return
   }
   
@@ -592,59 +576,39 @@ function addBusTrip(trip) {
     id: `bus-${trip.day}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
   }
   
-  console.log('🚌 Adding new trip:', newTrip)
   currentSchedule.value.busTrips.push(newTrip)
   saveAllSchedules()
-  console.log('🚌 busTrips now has', currentSchedule.value.busTrips.length, 'items')
 }
 
 function removeItemFromSchedule(item) {
-  console.log('🗑️ Removing item:', item)
-  
   if (!currentSchedule.value) return
   
   if (item.type === 'bus') {
     const index = currentSchedule.value.busTrips.findIndex(t => t.id === item.id)
     if (index !== -1) {
       currentSchedule.value.busTrips.splice(index, 1)
-      console.log('🗑️ Removed bus trip at index', index)
     }
   } else {
     const itemId = getItemId(item)
-    console.log('🗑️ Looking for course with ID:', itemId)
-    console.log('🗑️ Current courses before removal:', currentSchedule.value.courses.length)
-    console.log('🗑️ Course IDs:', currentSchedule.value.courses.map(c => getItemId(c)))
     
     // Filter out the course by ID
     const newCourses = currentSchedule.value.courses.filter(c => getItemId(c) !== itemId)
     
-    console.log('🗑️ Courses after filter:', newCourses.length)
-    
     // Assign the new filtered array
     currentSchedule.value.courses = newCourses
-    
-    console.log('🗑️ Verified removal. Current count:', currentSchedule.value.courses.length)
   }
   
   // Save immediately after modification
   saveAllSchedules()
-  
-  // Verify save worked by re-reading
-  console.log('🗑️ After save, schedule has', currentSchedule.value.courses.length, 'courses')
-  
   closeModal()
 }
 
 function handleItemDrop(item) {
-  console.log('📥 handleItemDrop received:', item)
-  
   if (!currentSchedule.value) return
   
   if (item.type === 'bus') {
-    console.log('📥 It is a bus trip, calling addBusTrip')
     addBusTrip(item)
   } else {
-    console.log('📥 It is a course')
     const courseId = getItemId(item)
     const alreadyEnrolled = currentSchedule.value.courses.some(
       c => getItemId(c) === courseId
@@ -666,7 +630,7 @@ async function loadCourses() {
   error.value = null
   
   try {
-    const response = await courseCatalogAPI.getAll()
+    const response = await courseCatalogAPI.getAllCourses()
     
     if (Array.isArray(response)) {
       courses.value = response
@@ -684,44 +648,16 @@ async function loadCourses() {
 }
 
 async function searchCourses(query) {
+  if (!query || query.trim() === '') {
+    await loadCourses()
+    return
+  }
+  
   loading.value = true
   error.value = null
   
   try {
-    // Build filters object from filter state
-    const filters = {}
-    
-    if (subjectFilter.value) {
-      filters.subject = subjectFilter.value
-    }
-    
-    // API spec expects single 'day' string, but we have multiple days selected
-    // For now, we'll use the first selected day, or we could make multiple requests
-    if (selectedFilterDays.value.length > 0) {
-      filters.day = selectedFilterDays.value[0] // Use first selected day
-    }
-    
-    // API spec expects timeWindow with { day, start, end }
-    // We have startTimeFilter and endTimeFilter as hours
-    // For now, we'll only apply time filter if a day is also selected
-    if (selectedFilterDays.value.length > 0 && (startTimeFilter.value !== '' || endTimeFilter.value !== '')) {
-      const day = selectedFilterDays.value[0]
-      const start = startTimeFilter.value !== '' ? `${startTimeFilter.value}:00` : '00:00'
-      const end = endTimeFilter.value !== '' ? `${endTimeFilter.value}:00` : '23:59'
-      filters.timeWindow = { day, start, end }
-    }
-    
-    // If no query and no filters, just get all courses
-    if (!query || query.trim() === '') {
-      if (Object.keys(filters).length === 0) {
-        await loadCourses()
-        return
-      }
-      // If we have filters but no query, use empty query
-      query = ''
-    }
-    
-    const response = await courseCatalogAPI.search(query.trim(), filters)
+    const response = await courseCatalogAPI.searchCourses(query)
     
     if (Array.isArray(response)) {
       courses.value = response
@@ -751,23 +687,6 @@ onMounted(() => {
   loadAllSchedules()
   loadCourses()
 })
-
-// Watch for filter changes and trigger search
-watch([subjectFilter, selectedFilterDays, startTimeFilter, endTimeFilter], () => {
-  if (hasActiveFilters.value || searchQuery.value.trim() !== '') {
-    // Debounce the search
-    if (searchTimeout.value) {
-      clearTimeout(searchTimeout.value)
-    }
-    searchTimeout.value = setTimeout(() => {
-      searchCourses(searchQuery.value)
-    }, 500)
-  }
-}, { deep: true })
-
-watch(enrolledItems, (newVal) => {
-  console.log('👀 enrolledItems changed:', newVal.length, 'total items')
-}, { deep: true })
 </script>
 
 <style scoped>

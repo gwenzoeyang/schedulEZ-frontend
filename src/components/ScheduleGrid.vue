@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps({
   enrolledCourses: {
@@ -153,14 +153,6 @@ function getCourseColor(item) {
   return courseColorMap.value.get(courseId) || pastelColors[0]
 }
 
-// Debug: watch for prop changes
-watch(() => props.enrolledCourses, (newVal) => {
-  console.log('📋 ScheduleGrid received enrolledCourses:', newVal.length, 'items')
-  newVal.forEach(item => {
-    console.log('📋 Item:', getItemId(item), 'meetingTimes:', item.meetingTimes)
-  })
-}, { immediate: true, deep: true })
-
 const emit = defineEmits(['course-dropped', 'course-clicked'])
 
 const days = [
@@ -211,16 +203,11 @@ function truncate(text, length = 16) {
 }
 
 const scheduledItems = computed(() => {
-  console.log('🗓️ Computing scheduledItems from', props.enrolledCourses.length, 'courses')
-  const items = props.enrolledCourses.filter(item => {
-    const hasMeetingTimes = item.meetingTimes && 
+  return props.enrolledCourses.filter(item => {
+    return item.meetingTimes && 
            Array.isArray(item.meetingTimes) && 
            item.meetingTimes.length > 0
-    console.log('🗓️ Course:', getItemId(item), 'hasMeetingTimes:', hasMeetingTimes, 'meetingTimes:', item.meetingTimes)
-    return hasMeetingTimes
   })
-  console.log('🗓️ scheduledItems result:', items.length, 'items')
-  return items
 })
 
 const floatingItems = computed(() => {
@@ -237,12 +224,10 @@ function parseTime(timeStr) {
   // Try 24-hour format first: "14:30"
   let match = timeStr.match(/^(\d{1,2}):(\d{2})$/)
   if (match) {
-    const result = {
+    return {
       hour: parseInt(match[1]),
       minute: parseInt(match[2])
     }
-    console.log('⏰ parseTime (24h):', timeStr, '→', result)
-    return result
   }
   
   // Try 12-hour format with AM/PM: "9:55 AM" or "2:20 PM"
@@ -259,12 +244,9 @@ function parseTime(timeStr) {
       hour = 0
     }
     
-    const result = { hour, minute }
-    console.log('⏰ parseTime (12h):', timeStr, '→', result)
-    return result
+    return { hour, minute }
   }
   
-  console.log('⏰ parseTime FAILED for:', timeStr)
   return null
 }
 
@@ -294,23 +276,15 @@ function getItemsAtHour(day, hour) {
 }
 
 function getItemsStartingAt(day, hour) {
-  const result = scheduledItems.value.filter(item => {
+  return scheduledItems.value.filter(item => {
     const mt = getMeetingTimeForDay(item, day)
     if (!mt) return false
     
     const startTime = parseTime(mt.start)
-    if (!startTime) {
-      console.log('⚠️ parseTime failed for:', mt.start)
-      return false
-    }
+    if (!startTime) return false
     
-    const matches = startTime.hour === hour
-    if (matches) {
-      console.log('✅ Found item at', day, hour, ':', getItemId(item))
-    }
-    return matches
+    return startTime.hour === hour
   })
-  return result
 }
 
 function getOverlapCount(day, hour) {
@@ -454,8 +428,6 @@ function getOverlappingCount(item, day) {
 }
 
 function handleDrop(e) {
-  console.log('📥 Drop event received!')
-  
   // Try to get data from dataTransfer
   let rawData = e.dataTransfer.getData('application/json')
   if (!rawData) {
@@ -465,31 +437,24 @@ function handleDrop(e) {
     rawData = e.dataTransfer.getData('text')
   }
   
-  console.log('📥 Raw data:', rawData)
-  
   if (!rawData) {
-    console.error('📥 No data received in drop!')
     return
   }
   
   try {
     const data = JSON.parse(rawData)
-    console.log('📥 Parsed data:', data)
     
     // Check if it's an array of bus trips
     if (Array.isArray(data)) {
-      console.log('📥 Processing array of', data.length, 'items')
       for (const item of data) {
-        console.log('📥 Emitting item:', item)
         emit('course-dropped', item)
       }
     } else {
       // Single item (course or single bus trip)
-      console.log('📥 Emitting single item:', data)
       emit('course-dropped', data)
     }
   } catch (error) {
-    console.error('📥 Error parsing drop data:', error)
+    console.error('Error parsing drop data:', error)
   }
 }
 

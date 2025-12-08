@@ -666,7 +666,7 @@ async function loadCourses() {
   error.value = null
   
   try {
-    const response = await courseCatalogAPI.getAllCourses()
+    const response = await courseCatalogAPI.getAll()
     
     if (Array.isArray(response)) {
       courses.value = response
@@ -684,16 +684,44 @@ async function loadCourses() {
 }
 
 async function searchCourses(query) {
-  if (!query || query.trim() === '') {
-    await loadCourses()
-    return
-  }
-  
   loading.value = true
   error.value = null
   
   try {
-    const response = await courseCatalogAPI.searchCourses(query)
+    // Build filters object from filter state
+    const filters = {}
+    
+    if (subjectFilter.value) {
+      filters.subject = subjectFilter.value
+    }
+    
+    // API spec expects single 'day' string, but we have multiple days selected
+    // For now, we'll use the first selected day, or we could make multiple requests
+    if (selectedFilterDays.value.length > 0) {
+      filters.day = selectedFilterDays.value[0] // Use first selected day
+    }
+    
+    // API spec expects timeWindow with { day, start, end }
+    // We have startTimeFilter and endTimeFilter as hours
+    // For now, we'll only apply time filter if a day is also selected
+    if (selectedFilterDays.value.length > 0 && (startTimeFilter.value !== '' || endTimeFilter.value !== '')) {
+      const day = selectedFilterDays.value[0]
+      const start = startTimeFilter.value !== '' ? `${startTimeFilter.value}:00` : '00:00'
+      const end = endTimeFilter.value !== '' ? `${endTimeFilter.value}:00` : '23:59'
+      filters.timeWindow = { day, start, end }
+    }
+    
+    // If no query and no filters, just get all courses
+    if (!query || query.trim() === '') {
+      if (Object.keys(filters).length === 0) {
+        await loadCourses()
+        return
+      }
+      // If we have filters but no query, use empty query
+      query = ''
+    }
+    
+    const response = await courseCatalogAPI.search(query.trim(), filters)
     
     if (Array.isArray(response)) {
       courses.value = response
@@ -723,6 +751,19 @@ onMounted(() => {
   loadAllSchedules()
   loadCourses()
 })
+
+// Watch for filter changes and trigger search
+watch([subjectFilter, selectedFilterDays, startTimeFilter, endTimeFilter], () => {
+  if (hasActiveFilters.value || searchQuery.value.trim() !== '') {
+    // Debounce the search
+    if (searchTimeout.value) {
+      clearTimeout(searchTimeout.value)
+    }
+    searchTimeout.value = setTimeout(() => {
+      searchCourses(searchQuery.value)
+    }, 500)
+  }
+}, { deep: true })
 
 watch(enrolledItems, (newVal) => {
   console.log('👀 enrolledItems changed:', newVal.length, 'total items')

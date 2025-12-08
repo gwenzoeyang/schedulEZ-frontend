@@ -45,6 +45,7 @@
           v-for="item in floatingItems" 
           :key="item.id || getItemId(item)"
           :class="['floating-item', { 'bus-item': item.type === 'bus' }]"
+          :style="getFloatingItemStyle(item)"
           @click="handleItemClick(item)"
         >
           <div class="block-code">{{ getDisplayCode(item) }}</div>
@@ -64,6 +65,93 @@ const props = defineProps({
     default: () => []
   }
 })
+
+// Pastel color palette for courses - soft fairy-like colors
+const pastelColors = [
+  { bg: '#E8B7CA', border: '#D8A0B5', hover: '#DDA8BC' }, // Soft Rose
+  { bg: '#ADE1EF', border: '#8FCFDF', hover: '#9DD8E8' }, // Sky Blue
+  { bg: '#D2CCF2', border: '#BEB9E2', hover: '#C5C0EA' }, // Soft Lavender
+  { bg: '#B2EAD3', border: '#96DCC0', hover: '#A4E3CB' }, // Mint Green
+  { bg: '#F5E29E', border: '#E8D488', hover: '#F0DB90' }, // Soft Yellow
+  { bg: '#C8EBEF', border: '#B0DDE2', hover: '#BCE4E8' }, // Pale Cyan
+  { bg: '#EDBDD5', border: '#DFA8C3', hover: '#E5B2CC' }, // Rose Pink
+  { bg: '#DFCFF3', border: '#CFBCE6', hover: '#D7C5EC' }, // Light Purple
+  { bg: '#A9E8E8', border: '#8FD8D8', hover: '#9CE0E0' }, // Soft Cyan
+  { bg: '#C6EAEE', border: '#B0DCE2', hover: '#BBE3E8' }, // Light Teal
+  { bg: '#C0F3EA', border: '#A5E8DC', hover: '#B2EDE3' }, // Seafoam
+  { bg: '#F5F4D6', border: '#E8E7C0', hover: '#EEEDCB' }, // Cream
+]
+
+// Store persistent color assignments (survives reactivity updates)
+const colorAssignments = new Map()
+
+// Assign colors to courses randomly (excluding bus trips)
+const courseColorMap = computed(() => {
+  const colorMap = new Map()
+  const usedColorIndices = new Set()
+  
+  // First, keep existing assignments that are still in enrolledCourses
+  const currentCourseIds = new Set(
+    props.enrolledCourses
+      .filter(item => item.type !== 'bus')
+      .map(item => getItemId(item))
+  )
+  
+  // Remove assignments for courses no longer enrolled
+  for (const [courseId] of colorAssignments) {
+    if (!currentCourseIds.has(courseId)) {
+      colorAssignments.delete(courseId)
+    }
+  }
+  
+  // Track which colors are currently in use
+  for (const [, colorIndex] of colorAssignments) {
+    usedColorIndices.add(colorIndex)
+  }
+  
+  // Assign colors to courses
+  props.enrolledCourses.forEach(item => {
+    if (item.type !== 'bus') {
+      const courseId = getItemId(item)
+      
+      // Check if this course already has a color
+      if (colorAssignments.has(courseId)) {
+        const colorIndex = colorAssignments.get(courseId)
+        colorMap.set(courseId, pastelColors[colorIndex])
+      } else {
+        // Find available colors (not currently in use)
+        const availableIndices = []
+        for (let i = 0; i < pastelColors.length; i++) {
+          if (!usedColorIndices.has(i)) {
+            availableIndices.push(i)
+          }
+        }
+        
+        // Pick a random available color, or any random if all used
+        let randomIndex
+        if (availableIndices.length > 0) {
+          randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)]
+        } else {
+          // All colors used, pick any random one
+          randomIndex = Math.floor(Math.random() * pastelColors.length)
+        }
+        
+        colorAssignments.set(courseId, randomIndex)
+        usedColorIndices.add(randomIndex)
+        colorMap.set(courseId, pastelColors[randomIndex])
+      }
+    }
+  })
+  
+  return colorMap
+})
+
+// Get color for a specific course
+function getCourseColor(item) {
+  if (item.type === 'bus') return null
+  const courseId = getItemId(item)
+  return courseColorMap.value.get(courseId) || pastelColors[0]
+}
 
 // Debug: watch for prop changes
 watch(() => props.enrolledCourses, (newVal) => {
@@ -302,13 +390,38 @@ function getItemStyle(item, day, hour, indexInCell, overlapCount) {
   const widthPercent = 100 / totalOverlapping
   const leftPercent = overlapIndex * widthPercent
   
-  return {
+  // Get pastel color for this course
+  const color = getCourseColor(item)
+  
+  const style = {
     position: 'absolute',
     top: `${topOffset}px`,
     height: `${height}px`,
     left: `calc(${leftPercent}% + 1px)`,
     width: `calc(${widthPercent}% - 2px)`,
     zIndex: 5 + overlapIndex
+  }
+  
+  // Apply pastel colors for courses (not bus trips)
+  if (color && item.type !== 'bus') {
+    style.backgroundColor = color.bg
+    style.borderColor = color.border
+    style['--hover-bg'] = color.hover
+  }
+  
+  return style
+}
+
+function getFloatingItemStyle(item) {
+  if (item.type === 'bus') return {}
+  
+  const color = getCourseColor(item)
+  if (!color) return {}
+  
+  return {
+    backgroundColor: color.bg,
+    borderColor: color.border,
+    '--hover-bg': color.hover
   }
 }
 
@@ -461,10 +574,10 @@ function handleItemClick(item) {
   background: #f8fafc;
 }
 
-/* Course blocks - solid white with dark blue border */
+/* Course blocks - pastel colors applied via inline styles */
 .schedule-block {
-  background: white;
-  border: 2px solid #012169;
+  background: #E8B7CA; /* Default soft rose, overridden by inline style */
+  border: 2px solid #D8A0B5;
   border-radius: 4px;
   padding: 0.3rem;
   font-size: 0.7rem;
@@ -477,15 +590,16 @@ function handleItemClick(item) {
 }
 
 .schedule-block:hover {
-  background: #f0f4f8;
-  box-shadow: 0 2px 8px rgba(1, 33, 105, 0.3);
+  background: var(--hover-bg, #DDA8BC);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 20 !important;
+  transform: scale(1.02);
 }
 
 .schedule-block .block-code {
   font-weight: 700;
   font-size: 0.75rem;
-  color: #012169;
+  color: #333;
   margin-bottom: 0.1rem;
   white-space: nowrap;
   overflow: hidden;
@@ -494,7 +608,7 @@ function handleItemClick(item) {
 
 .schedule-block .block-name {
   font-size: 0.65rem;
-  color: #333;
+  color: #555;
   line-height: 1.2;
   flex: 1;
   overflow: hidden;
@@ -560,8 +674,8 @@ function handleItemClick(item) {
 }
 
 .floating-item {
-  background: white;
-  border: 2px dashed #012169;
+  background: #E8B7CA; /* Default soft rose, overridden by inline style */
+  border: 2px dashed #D8A0B5;
   border-radius: 4px;
   padding: 0.5rem 0.75rem;
   min-width: 120px;
@@ -571,7 +685,8 @@ function handleItemClick(item) {
 
 .floating-item:hover {
   border-style: solid;
-  background: #f8f8f8;
+  background: var(--hover-bg, #DDA8BC);
+  transform: scale(1.02);
 }
 
 .floating-item.bus-item {
@@ -597,7 +712,7 @@ function handleItemClick(item) {
 
 .floating-item .block-code {
   font-weight: 600;
-  color: #012169;
+  color: #333;
   font-size: 0.8rem;
 }
 
@@ -607,7 +722,7 @@ function handleItemClick(item) {
 
 .floating-item .block-name {
   font-size: 0.75rem;
-  color: #666;
+  color: #555;
   margin-top: 0.15rem;
 }
 

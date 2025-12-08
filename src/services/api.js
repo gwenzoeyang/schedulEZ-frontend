@@ -18,12 +18,51 @@ async function apiRequest(endpoint, body = {}) {
     })
 
     console.log(`Response status: ${response.status}`)
+    console.log(`Response content-type: ${response.headers.get('content-type')}`)
+    
+    // Check if response is ok before parsing
+    if (!response.ok) {
+      // Try to get error message from response
+      const contentType = response.headers.get('content-type')
+      let errorMessage = `API request failed: ${response.status} ${response.statusText}`
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch (e) {
+          // If JSON parsing fails, use status text
+          errorMessage = `API request failed: ${response.status} ${response.statusText}`
+        }
+      } else {
+        // For non-JSON responses (like HTML error pages), read as text
+        try {
+          const text = await response.text()
+          console.error('Non-JSON error response:', text.substring(0, 200))
+          errorMessage = `API endpoint not found (404). The endpoint ${endpoint} may not be implemented on the backend.`
+        } catch (e) {
+          // Fallback to status text
+          errorMessage = `API request failed: ${response.status} ${response.statusText}`
+        }
+      }
+      
+      throw new Error(errorMessage)
+    }
+    
+    // Check content type before parsing JSON
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text()
+      console.warn('Response is not JSON:', text.substring(0, 200))
+      throw new Error(`Expected JSON response but got ${contentType || 'unknown content type'}`)
+    }
     
     const data = await response.json()
     console.log(`Response data:`, data)
 
-    if (!response.ok || data.error) {
-      throw new Error(data.error || `API request failed: ${response.statusText}`)
+    // Check for error in response body
+    if (data.error) {
+      throw new Error(data.error)
     }
 
     // Handle Set responses - check if this might be a serialized Set and convert to array
@@ -39,40 +78,71 @@ async function apiRequest(endpoint, body = {}) {
     return data
   } catch (error) {
     console.error(`API request failed for ${endpoint}:`, error)
+    // Re-throw with more context if it's a network error
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to connect to ${API_BASE_URL}. Is the backend server running?`)
+    }
     throw error
   }
 }
 
-// CourseCatalog API - Updated to match new API spec
+// CourseCatalog API - Endpoints match CourseCatalogConcept.ts methods
 export const courseCatalogAPI = {
+  // Get all courses (query method - has underscore prefix)
+  getAllCourses: () => apiRequest('/api/CourseCatalog/_getAllCourses', {}),
+  getAll: () => apiRequest('/api/CourseCatalog/_getAllCourses', {}), // Alias for backwards compatibility
+  
+  // Get course by courseID (query method)
+  getCourseByCode: (code) => apiRequest('/api/CourseCatalog/_getCourseByCode', { code }),
+  
+  // Search courses with query and optional filters (query method)
+  searchCourses: (query, filters = {}) => apiRequest('/api/CourseCatalog/_searchCourses', { query, filters }),
+  
+  // Get course prerequisites (query method)
+  getCoursePrerequisites: (course) => apiRequest('/api/CourseCatalog/_getCoursePrerequisites', { course }),
+  
+  // Get course corequisites (query method)
+  getCourseCorequisites: (course) => apiRequest('/api/CourseCatalog/_getCourseCorequisites', { course }),
+  
+  // Admin functions (mutation methods - no underscore)
   addCourse: (courseData) => apiRequest('/api/CourseCatalog/addCourse', courseData),
   updateCourseDetails: (courseData) => apiRequest('/api/CourseCatalog/updateCourseDetails', courseData),
   removeCourse: (course) => apiRequest('/api/CourseCatalog/removeCourse', { course }),
-  getAllCourses: () => apiRequest('/api/CourseCatalog/_getAllCourses', {}),
-  getCourseByCode: (code) => apiRequest('/api/CourseCatalog/_getCourseByCode', { code }),
-  searchCourses: (query) => apiRequest('/api/CourseCatalog/_searchCourses', { query }),
-  getCoursePrerequisites: (course) => apiRequest('/api/CourseCatalog/_getCoursePrerequisites', { course }),
-  getCourseCorequisites: (course) => apiRequest('/api/CourseCatalog/_getCourseCorequisites', { course })
 }
 
-// Schedule API - Updated to match new API spec
+// Schedule API - Endpoints match ScheduleConcept.ts methods
 export const scheduleAPI = {
+  // Query methods (underscore prefix)
+  getScheduleById: (schedule) => apiRequest('/api/Schedule/_getScheduleById', { schedule }),
+  findSchedules: (criteria) => apiRequest('/api/Schedule/_findSchedules', criteria),
+  
+  // Mutation methods (no underscore)
   createSchedule: (scheduleData) => apiRequest('/api/Schedule/createSchedule', scheduleData),
   updateSchedule: (scheduleData) => apiRequest('/api/Schedule/updateSchedule', scheduleData),
   deleteSchedule: (schedule) => apiRequest('/api/Schedule/deleteSchedule', { schedule }),
-  getScheduleById: (schedule) => apiRequest('/api/Schedule/_getScheduleById', { schedule }),
-  findSchedules: (criteria) => apiRequest('/api/Schedule/_findSchedules', criteria)
+  
+  // Helper methods (no underscore)
+  addCourse: (userId, courseID) => apiRequest('/api/Schedule/addCourse', { userId, courseID }),
+  removeCourse: (userId, courseID) => apiRequest('/api/Schedule/removeCourse', { userId, courseID }),
+  getUserSchedule: (userId) => apiRequest('/api/Schedule/getUserSchedule', { userId }),
+  
+  // AI Features (no underscore)
+  setAIPreferences: (prefs) => apiRequest('/api/Schedule/setAIPreferences', prefs),
+  suggestCourse: (params) => apiRequest('/api/Schedule/suggestCourse', params),
 }
 
-// CrossRegTravel API - Updated to match new API spec
+// CrossRegTravel API - Endpoints match CrossRegTravelConcept.ts methods
 export const crossRegTravelAPI = {
-  requestTravel: (travelData) => apiRequest('/api/CrossRegTravel/requestTravel', travelData),
-  approveTravel: (requestId) => apiRequest('/api/CrossRegTravel/approveTravel', { requestId }),
-  denyTravel: (requestId, reason) => apiRequest('/api/CrossRegTravel/denyTravel', { requestId, reason }),
-  cancelTravel: (requestId) => apiRequest('/api/CrossRegTravel/cancelTravel', { requestId }),
-  getTravelRequestStatus: (requestId) => apiRequest('/api/CrossRegTravel/_getTravelRequestStatus', { requestId }),
-  getStudentTravelRequests: (student) => apiRequest('/api/CrossRegTravel/_getStudentTravelRequests', { student }),
-  getCourseTravelRequests: (course) => apiRequest('/api/CrossRegTravel/_getCourseTravelRequests', { course })
+  // Query methods (underscore prefix)
+  getTravelOptions: (params) => apiRequest('/api/CrossRegTravel/_getTravelOptions', params),
+  getBusSchedule: (params) => apiRequest('/api/CrossRegTravel/_getBusSchedule', params),
+  findRoutes: (origin, destination) => apiRequest('/api/CrossRegTravel/_findRoutes', { origin, destination }),
+  
+  // Mutation methods (no underscore)
+  submitRequest: (studentID, courseID, departureTime, returnTime, reason = '') => 
+    apiRequest('/api/CrossRegTravel/submitRequest', { studentID, courseID, departureTime, returnTime, reason }),
+  updateStatus: (requestID, newStatus, adminNotes = '') => 
+    apiRequest('/api/CrossRegTravel/updateStatus', { requestID, newStatus, adminNotes }),
 }
 
 export default {
@@ -80,4 +150,3 @@ export default {
   schedule: scheduleAPI,
   crossRegTravel: crossRegTravelAPI
 }
-

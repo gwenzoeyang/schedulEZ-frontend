@@ -1,42 +1,176 @@
+Here is the API documentation for the `CourseCatalog`, `CrossRegTravel`, and `Schedule` concepts, based on the provided concept specifications and API documentation rules.
+
 ---
 
 # API Specification: CourseCatalog Concept
 
-**Purpose:** allow a user to discover courses
+**Purpose:** Provide a centralized, searchable catalog of courses to enable users to discover and retrieve course details efficiently based on various filtering criteria.
 
 ---
 
 ## API Endpoints
 
-### POST /api/CourseCatalog/addCourse
+### POST /api/CourseCatalog/create
 
-**Description:** Adds a new course to the catalog with specified details.
+**Description:** Establishes a connection to the MongoDB database and initializes the CourseCatalog concept for operation.
+
+**Requirements:**
+- `mongoUrl` is a valid MongoDB connection string.
+
+**Effects:**
+- A connection to the specified MongoDB instance and collection is established, initializing the concept for operation.
+
+**Request Body:**
+```json
+{
+  "mongoUrl": "string",
+  "dbName": "string",
+  "collection": "string"
+}
+```
+
+**Success Response Body (Action):**
+```json
+{
+  "catalog": "object"
+}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/CourseCatalog/close
+
+**Description:** Terminates the connection to the MongoDB database.
+
+**Requirements:**
+- The concept is currently connected to the database.
+
+**Effects:**
+- The connection to the MongoDB database is terminated.
+
+**Request Body:**
+```json
+{}
+```
+
+**Success Response Body (Action):**
+```json
+{}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/CourseCatalog/getById
+
+**Description:** Retrieves a single course by its unique identifier.
+
+**Requirements:**
+- A `Course` with the given `courseID` exists in the catalog.
+
+**Effects:**
+- Returns the `Course` object corresponding to the `courseID`.
+
+**Request Body:**
+```json
+{
+  "courseID": "string"
+}
+```
+
+**Success Response Body (Query):**
+```json
+[
+  {
+    "courseID": "string",
+    "title": "string",
+    "instructor": "string",
+    "DBmeetingTimes": "string | array<string>",
+    "meetingTimes": [
+      {
+        "day": "string",
+        "start": "string",
+        "end": "string"
+      }
+    ],
+    "location": "string",
+    "subject": "string",
+    "campus": "string",
+    "rmp": "string",
+    "description": "string"
+  }
+]
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/CourseCatalog/search
+
+**Description:** Searches courses based on a query string against courseID, title, and instructor, and filters results by instructor, subject, day, time window, and campus.
 
 **Requirements:**
 - true
 
 **Effects:**
-- adds a new course to the catalog
+- Returns a set of `Course` objects that match the text `query` against courseID, title, and instructor, and satisfy the `filters`.
 
 **Request Body:**
 ```json
 {
-  "name": "string",
-  "code": "string",
-  "description": "string",
-  "creditHours": "number",
-  "campus": "string",
-  "schedule": "string",
-  "prerequisites": "array<string>",
-  "corequisites": "array<string>"
+  "query": "string",
+  "filters": {
+    "instructor": "string",
+    "subject": "string",
+    "day": "string",
+    "timeWindow": {
+      "day": "string",
+      "start": "string",
+      "end": "string"
+    },
+    "campus": "string"
+  }
 }
 ```
 
-**Success Response Body (Action):**
+**Success Response Body (Query):**
 ```json
-{
-  "course": "string"
-}
+[
+  {
+    "courseID": "string",
+    "title": "string",
+    "instructor": "string",
+    "DBmeetingTimes": "string | array<string>",
+    "meetingTimes": [
+      {
+        "day": "string",
+        "start": "string",
+        "end": "string"
+      }
+    ],
+    "location": "string",
+    "subject": "string",
+    "campus": "string",
+    "rmp": "string",
+    "description": "string"
+  }
+]
 ```
 
 **Error Response Body:**
@@ -47,86 +181,15 @@
 ```
 
 ---
+### POST /api/CourseCatalog/getAll
 
-### POST /api/CourseCatalog/updateCourseDetails
-
-**Description:** Updates the details of an existing course in the catalog.
-
-**Requirements:**
-- course exists
-
-**Effects:**
-- updates the details of the given course
-
-**Request Body:**
-```json
-{
-  "course": "string",
-  "name": "string",
-  "code": "string",
-  "description": "string",
-  "creditHours": "number",
-  "campus": "string",
-  "schedule": "string",
-  "prerequisites": "array<string>",
-  "corequisites": "array<string>"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/CourseCatalog/removeCourse
-
-**Description:** Removes a course from the catalog.
-
-**Requirements:**
-- course exists and is not referenced by any other course as a prerequisite or corequisite
-
-**Effects:**
-- removes the course from the catalog
-
-**Request Body:**
-```json
-{
-  "course": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/CourseCatalog/_getAllCourses
-
-**Description:** Retrieves all courses currently in the catalog.
+**Description:** Retrieves all courses from the catalog.
 
 **Requirements:**
 - true
 
 **Effects:**
-- returns all courses in the catalog
+- Returns a set of all `Course` objects in the catalog.
 
 **Request Body:**
 ```json
@@ -137,333 +200,22 @@
 ```json
 [
   {
-    "course": "string"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/CourseCatalog/_getCourseByCode
-
-**Description:** Retrieves a specific course by its unique code.
-
-**Requirements:**
-- course with code exists
-
-**Effects:**
-- returns the course with the given code
-
-**Request Body:**
-```json
-{
-  "code": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "course": "string"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/CourseCatalog/_searchCourses
-
-**Description:** Searches for courses whose name or description match a given query string.
-
-**Requirements:**
-- true
-
-**Effects:**
-- returns courses whose name or description match the query
-
-**Request Body:**
-```json
-{
-  "query": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "course": "string"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/CourseCatalog/_getCoursePrerequisites
-
-**Description:** Retrieves all prerequisites for a given course.
-
-**Requirements:**
-- course exists
-
-**Effects:**
-- returns all prerequisites for the given course
-
-**Request Body:**
-```json
-{
-  "course": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "prerequisite": "string"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/CourseCatalog/_getCourseCorequisites
-
-**Description:** Retrieves all corequisites for a given course.
-
-**Requirements:**
-- course exists
-
-**Effects:**
-- returns all corequisites for the given course
-
-**Request Body:**
-```json
-{
-  "course": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "corequisite": "string"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-# API Specification: Schedule Concept
-
-**Purpose:** define and manage schedules for various entities like courses or events.
-
----
-
-## API Endpoints
-
-### POST /api/Schedule/createSchedule
-
-**Description:** Creates a new schedule with specified days, times, and location.
-
-**Requirements:**
-- startTime is before endTime and location is not empty
-
-**Effects:**
-- creates a new schedule and returns its identifier
-
-**Request Body:**
-```json
-{
-  "daysOfWeek": "array<string>",
-  "startTime": "string",
-  "endTime": "string",
-  "location": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{
-  "schedule": "string"
-}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/Schedule/updateSchedule
-
-**Description:** Updates the details of an existing schedule.
-
-**Requirements:**
-- schedule exists and startTime is before endTime and location is not empty
-
-**Effects:**
-- updates the details of the given schedule
-
-**Request Body:**
-```json
-{
-  "schedule": "string",
-  "daysOfWeek": "array<string>",
-  "startTime": "string",
-  "endTime": "string",
-  "location": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/Schedule/deleteSchedule
-
-**Description:** Deletes a schedule.
-
-**Requirements:**
-- schedule exists and is not referenced by any other concept
-
-**Effects:**
-- removes the schedule
-
-**Request Body:**
-```json
-{
-  "schedule": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/Schedule/_getScheduleById
-
-**Description:** Retrieves the full details of a specified schedule.
-
-**Requirements:**
-- schedule exists
-
-**Effects:**
-- returns the details of the specified schedule
-
-**Request Body:**
-```json
-{
-  "schedule": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "daysOfWeek": "array<string>",
-    "startTime": "string",
-    "endTime": "string",
-    "location": "string"
-  }
-]
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/Schedule/_findSchedules
-
-**Description:** Finds schedules matching specific criteria.
-
-**Requirements:**
-- true
-
-**Effects:**
-- returns schedules matching the criteria
-
-**Request Body:**
-```json
-{
-  "daysOfWeek": "array<string>",
-  "startTime": "string",
-  "endTime": "string",
-  "location": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "schedule": "string"
+    "courseID": "string",
+    "title": "string",
+    "instructor": "string",
+    "DBmeetingTimes": "string | array<string>",
+    "meetingTimes": [
+      {
+        "day": "string",
+        "start": "string",
+        "end": "string"
+      }
+    ],
+    "location": "string",
+    "subject": "string",
+    "campus": "string",
+    "rmp": "string",
+    "description": "string"
   }
 ]
 ```
@@ -479,37 +231,35 @@
 
 # API Specification: CrossRegTravel Concept
 
-**Purpose:** manage travel arrangements for cross-registered students.
+**Purpose:** Manage the submission, tracking, and administration of travel requests for cross-registered students.
 
 ---
 
 ## API Endpoints
 
-### POST /api/CrossRegTravel/requestTravel
+### POST /api/CrossRegTravel/create
 
-**Description:** Creates a new travel request for a student attending a cross-registered course.
+**Description:** Establishes a connection to the MongoDB database and initializes the CrossRegTravel concept for operation.
 
 **Requirements:**
-- student and course exist, travelDate is in the future, pickupLocation and dropoffLocation are valid
+- `mongoUrl` is a valid MongoDB connection string.
 
 **Effects:**
-- creates a new travel request for the student and course, sets status to 'Pending'
+- A connection to the specified MongoDB instance and collection is established, initializing the concept for operation.
 
 **Request Body:**
 ```json
 {
-  "student": "string",
-  "course": "string",
-  "travelDate": "string",
-  "pickupLocation": "string",
-  "dropoffLocation": "string"
+  "mongoUrl": "string",
+  "dbName": "string",
+  "collection": "string"
 }
 ```
 
 **Success Response Body (Action):**
 ```json
 {
-  "requestId": "string"
+  "crossRegTravel": "object"
 }
 ```
 
@@ -521,54 +271,23 @@
 ```
 
 ---
+### POST /api/CrossRegTravel/submitRequest
 
-### POST /api/CrossRegTravel/approveTravel
-
-**Description:** Approves a pending student travel request.
+**Description:** Creates a new travel request for a cross-registered student and course.
 
 **Requirements:**
-- requestId exists, status is 'Pending'
+- `studentID` and `courseID` refer to existing entities; `departureTime` and `returnTime` are valid ISO 8601 timestamps, with `departureTime` before `returnTime`.
 
 **Effects:**
-- updates status to 'Approved'
+- A new `TravelRequest` is created with a unique `requestID`, status "pending", and `submittedAt`/`lastUpdatedAt` set to the current time. The new request is added to the set of `TravelRequests`.
 
 **Request Body:**
 ```json
 {
-  "requestId": "string"
-}
-```
-
-**Success Response Body (Action):**
-```json
-{
-  "success": "boolean"
-}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/CrossRegTravel/denyTravel
-
-**Description:** Denies a pending student travel request with a reason.
-
-**Requirements:**
-- requestId exists, status is 'Pending'
-
-**Effects:**
-- updates status to 'Denied', records reason
-
-**Request Body:**
-```json
-{
-  "requestId": "string",
+  "studentID": "string",
+  "courseID": "string",
+  "departureTime": "string",
+  "returnTime": "string",
   "reason": "string"
 }
 ```
@@ -576,7 +295,18 @@
 **Success Response Body (Action):**
 ```json
 {
-  "success": "boolean"
+  "travelRequest": {
+    "requestID": "string",
+    "student": "string",
+    "course": "string",
+    "departureTime": "string",
+    "returnTime": "string",
+    "status": "string",
+    "reason": "string",
+    "adminNotes": "string",
+    "submittedAt": "string",
+    "lastUpdatedAt": "string"
+  }
 }
 ```
 
@@ -588,70 +318,41 @@
 ```
 
 ---
+### POST /api/CrossRegTravel/updateStatus
 
-### POST /api/CrossRegTravel/cancelTravel
-
-**Description:** Cancels a student travel request that is pending or approved.
+**Description:** Updates the status of an existing travel request, optionally adding administrator notes.
 
 **Requirements:**
-- requestId exists, status is 'Pending' or 'Approved'
+- A `TravelRequest` with the given `requestID` exists. `newStatus` is one of "approved", "rejected", or "canceled".
 
 **Effects:**
-- updates status to 'Cancelled'
+- The `status` of the specified `TravelRequest` is updated to `newStatus`, `adminNotes` are applied if provided, and `lastUpdatedAt` is set to the current time.
 
 **Request Body:**
 ```json
 {
-  "requestId": "string"
+  "requestID": "string",
+  "newStatus": "string",
+  "adminNotes": "string"
 }
 ```
 
 **Success Response Body (Action):**
 ```json
 {
-  "success": "boolean"
-}
-```
-
-**Error Response Body:**
-```json
-{
-  "error": "string"
-}
-```
-
----
-
-### POST /api/CrossRegTravel/_getTravelRequestStatus
-
-**Description:** Retrieves the status and full details of a specific travel request.
-
-**Requirements:**
-- requestId exists
-
-**Effects:**
-- returns the status and full details of the travel request
-
-**Request Body:**
-```json
-{
-  "requestId": "string"
-}
-```
-
-**Success Response Body (Query):**
-```json
-[
-  {
-    "status": "string",
+  "travelRequest": {
+    "requestID": "string",
     "student": "string",
     "course": "string",
-    "travelDate": "string",
-    "pickupLocation": "string",
-    "dropoffLocation": "string",
-    "reason": "string"
+    "departureTime": "string",
+    "returnTime": "string",
+    "status": "string",
+    "reason": "string",
+    "adminNotes": "string",
+    "submittedAt": "string",
+    "lastUpdatedAt": "string"
   }
-]
+}
 ```
 
 **Error Response Body:**
@@ -662,21 +363,48 @@
 ```
 
 ---
+### POST /api/CrossRegTravel/close
 
-### POST /api/CrossRegTravel/_getStudentTravelRequests
-
-**Description:** Retrieves all travel requests associated with a particular student.
+**Description:** Terminates the connection to the MongoDB database.
 
 **Requirements:**
-- student exists
+- The concept is currently connected to the database.
 
 **Effects:**
-- returns all travel requests for the given student
+- The connection to the MongoDB database is terminated.
+
+**Request Body:**
+```json
+{}
+```
+
+**Success Response Body (Action):**
+```json
+{}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/CrossRegTravel/getById
+
+**Description:** Retrieves a specific travel request by its unique identifier.
+
+**Requirements:**
+- A `TravelRequest` with the given `requestID` exists.
+
+**Effects:**
+- Returns the `TravelRequest` object identified by `requestID`.
 
 **Request Body:**
 ```json
 {
-  "student": "string"
+  "requestID": "string"
 }
 ```
 
@@ -684,7 +412,16 @@
 ```json
 [
   {
-    "requestId": "string"
+    "requestID": "string",
+    "student": "string",
+    "course": "string",
+    "departureTime": "string",
+    "returnTime": "string",
+    "status": "string",
+    "reason": "string",
+    "adminNotes": "string",
+    "submittedAt": "string",
+    "lastUpdatedAt": "string"
   }
 ]
 ```
@@ -697,21 +434,26 @@
 ```
 
 ---
+### POST /api/CrossRegTravel/getRequests
 
-### POST /api/CrossRegTravel/_getCourseTravelRequests
-
-**Description:** Retrieves all travel requests associated with a particular course.
+**Description:** Retrieves a set of travel requests that match specified filters.
 
 **Requirements:**
-- course exists
+- true
 
 **Effects:**
-- returns all travel requests for the given course
+- Returns a set of `TravelRequest` objects that match the specified `filters`.
 
 **Request Body:**
 ```json
 {
-  "course": "string"
+  "filters": {
+    "studentID": "string",
+    "courseID": "string",
+    "status": "string",
+    "departureDate": "string",
+    "returnDate": "string"
+  }
 }
 ```
 
@@ -719,7 +461,16 @@
 ```json
 [
   {
-    "requestId": "string"
+    "requestID": "string",
+    "student": "string",
+    "course": "string",
+    "departureTime": "string",
+    "returnTime": "string",
+    "status": "string",
+    "reason": "string",
+    "adminNotes": "string",
+    "submittedAt": "string",
+    "lastUpdatedAt": "string"
   }
 ]
 ```
@@ -732,3 +483,271 @@
 ```
 
 ---
+
+# API Specification: Schedule Concept
+
+**Purpose:** Provide students with the ability to manage their course enrollments and maintain their academic schedule, including tracking status and cross-registration.
+
+---
+
+## API Endpoints
+
+### POST /api/Schedule/create
+
+**Description:** Establishes a connection to the MongoDB database and initializes the Schedule concept for operation.
+
+**Requirements:**
+- `mongoUrl` is a valid MongoDB connection string.
+
+**Effects:**
+- A connection to the specified MongoDB instance and collection is established, initializing the concept for operation.
+
+**Request Body:**
+```json
+{
+  "mongoUrl": "string",
+  "dbName": "string",
+  "collection": "string"
+}
+```
+
+**Success Response Body (Action):**
+```json
+{
+  "schedule": "object"
+}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/Schedule/addCourse
+
+**Description:** Adds a new course enrollment to a student's schedule.
+
+**Requirements:**
+- `studentID` and `courseID` refer to existing entities; `term` is a valid academic term.
+
+**Effects:**
+- A new `ScheduleEntry` is created with a unique `entryID`, status "active", `enrolledAt` set to the current time, and other provided details. The new entry is added to the set of `ScheduleEntries`.
+
+**Request Body:**
+```json
+{
+  "studentID": "string",
+  "courseID": "string",
+  "term": "string",
+  "isCrossRegistered": "boolean",
+  "sectionID": "string",
+  "notes": "string"
+}
+```
+
+**Success Response Body (Action):**
+```json
+{
+  "scheduleEntry": {
+    "entryID": "string",
+    "student": "string",
+    "course": "string",
+    "sectionID": "string",
+    "term": "string",
+    "isCrossRegistered": "boolean",
+    "status": "string",
+    "enrolledAt": "string",
+    "droppedAt": "string",
+    "grade": "string",
+    "notes": "string"
+  }
+}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/Schedule/updateScheduleEntry
+
+**Description:** Updates specific details of an existing schedule entry.
+
+**Requirements:**
+- A `ScheduleEntry` with the given `entryID` exists.
+
+**Effects:**
+- The specified `updates` are applied to the `ScheduleEntry`. If the `status` changes to "dropped" and `droppedAt` is not already set, `droppedAt` is set to the current time. If the `status` changes from "dropped", `droppedAt` is cleared.
+
+**Request Body:**
+```json
+{
+  "entryID": "string",
+  "updates": {
+    "student": "string",
+    "course": "string",
+    "sectionID": "string",
+    "term": "string",
+    "isCrossRegistered": "boolean",
+    "status": "string",
+    "enrolledAt": "string",
+    "droppedAt": "string",
+    "grade": "string",
+    "notes": "string"
+  }
+}
+```
+
+**Success Response Body (Action):**
+```json
+{
+  "scheduleEntry": {
+    "entryID": "string",
+    "student": "string",
+    "course": "string",
+    "sectionID": "string",
+    "term": "string",
+    "isCrossRegistered": "boolean",
+    "status": "string",
+    "enrolledAt": "string",
+    "droppedAt": "string",
+    "grade": "string",
+    "notes": "string"
+  }
+}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/Schedule/close
+
+**Description:** Terminates the connection to the MongoDB database.
+
+**Requirements:**
+- The concept is currently connected to the database.
+
+**Effects:**
+- The connection to the MongoDB database is terminated.
+
+**Request Body:**
+```json
+{}
+```
+
+**Success Response Body (Action):**
+```json
+{}
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/Schedule/getById
+
+**Description:** Retrieves a specific schedule entry by its unique identifier.
+
+**Requirements:**
+- A `ScheduleEntry` with the given `entryID` exists.
+
+**Effects:**
+- Returns the `ScheduleEntry` object identified by `entryID`.
+
+**Request Body:**
+```json
+{
+  "entryID": "string"
+}
+```
+
+**Success Response Body (Query):**
+```json
+[
+  {
+    "entryID": "string",
+    "student": "string",
+    "course": "string",
+    "sectionID": "string",
+    "term": "string",
+    "isCrossRegistered": "boolean",
+    "status": "string",
+    "enrolledAt": "string",
+    "droppedAt": "string",
+    "grade": "string",
+    "notes": "string"
+  }
+]
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```
+
+---
+### POST /api/Schedule/getSchedule
+
+**Description:** Retrieves a set of schedule entries that match specified filters.
+
+**Requirements:**
+- true
+
+**Effects:**
+- Returns a set of `ScheduleEntry` objects that match the specified `filters`.
+
+**Request Body:**
+```json
+{
+  "filters": {
+    "studentID": "string",
+    "courseID": "string",
+    "term": "string",
+    "status": "string",
+    "isCrossRegistered": "boolean"
+  }
+}
+```
+
+**Success Response Body (Query):**
+```json
+[
+  {
+    "entryID": "string",
+    "student": "string",
+    "course": "string",
+    "sectionID": "string",
+    "term": "string",
+    "isCrossRegistered": "boolean",
+    "status": "string",
+    "enrolledAt": "string",
+    "droppedAt": "string",
+    "grade": "string",
+    "notes": "string"
+  }
+]
+```
+
+**Error Response Body:**
+```json
+{
+  "error": "string"
+}
+```

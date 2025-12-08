@@ -7,8 +7,6 @@ async function apiRequest(endpoint, body = {}) {
   const url = `${API_BASE_URL}${endpoint}`
   
   try {
-    console.log(`Making API request to: ${url}`, body)
-    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -16,9 +14,6 @@ async function apiRequest(endpoint, body = {}) {
       },
       body: JSON.stringify(body)
     })
-
-    console.log(`Response status: ${response.status}`)
-    console.log(`Response content-type: ${response.headers.get('content-type')}`)
     
     // Check if response is ok before parsing
     if (!response.ok) {
@@ -58,7 +53,6 @@ async function apiRequest(endpoint, body = {}) {
     }
     
     const data = await response.json()
-    console.log(`Response data:`, data)
 
     // Check for error in response body
     if (data.error) {
@@ -67,10 +61,8 @@ async function apiRequest(endpoint, body = {}) {
 
     // Handle Set responses - check if this might be a serialized Set and convert to array
     if (data && typeof data === 'object' && !Array.isArray(data)) {
-      console.log('Response is object, checking for Set-like structure')
       // If backend returns Set, try to convert it
       if (data.constructor?.name === 'Object' && Object.keys(data).length === 0) {
-        console.warn('Received empty object - might be a Set that was serialized incorrectly')
         return []
       }
     }
@@ -150,3 +142,5 @@ export default {
   schedule: scheduleAPI,
   crossRegTravel: crossRegTravelAPI
 }
+
+const API_BASE = import.meta.nv.VITE_API_BASE_URL || '/api'

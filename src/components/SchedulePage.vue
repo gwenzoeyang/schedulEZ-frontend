@@ -1,8 +1,14 @@
 <template>
   <div class="schedule-page">
     <div class="page-header">
-      <h1>SchedulEZ</h1>
-      <span class="tagline">Wellesley Cross-Registration Planner</span>
+      <div class="header-left">
+        <h1>SchedulEZ</h1>
+        <span class="tagline">Wellesley Cross-Registration Planner</span>
+      </div>
+      <div class="header-right">
+        <span class="author">by Gwen-Zoe Yang</span>
+        <span class="contact">Questions? <a href="mailto:gy101@wellesley.edu">gy101@wellesley.edu</a></span>
+      </div>
     </div>
     
     <div class="main-layout">
@@ -706,9 +712,36 @@ onMounted(() => {
   background: #012169;
   padding: 0.2rem 1rem;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
   align-items: baseline;
   gap: 1rem;
-  flex-shrink: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.header-right .author {
+  font-style: italic;
+}
+
+.header-right .contact a {
+  color: #a0c4ff;
+  text-decoration: none;
+}
+
+.header-right .contact a:hover {
+  text-decoration: underline;
 }
 
 .page-header h1 {

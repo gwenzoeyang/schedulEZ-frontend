@@ -358,8 +358,9 @@ function getItemStyle(item, day, hour, indexInCell, overlapCount) {
   const topOffset = (startTime.minute / 60) * 45
   const height = Math.max(durationHours * 45, 22)
   
+  // Only use actual time-based overlap (ignore overlapCount from template)
+  const totalOverlapping = getOverlappingCount(item, day)
   const overlapIndex = getOverlapIndex(item, day)
-  const totalOverlapping = Math.max(overlapCount, getOverlappingCount(item, day))
   
   const widthPercent = 100 / totalOverlapping
   const leftPercent = overlapIndex * widthPercent

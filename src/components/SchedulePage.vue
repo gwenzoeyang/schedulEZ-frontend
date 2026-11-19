@@ -6,8 +6,8 @@
         <span class="tagline">Wellesley Cross-Registration Planner</span>
       </div>
       <div class="header-right">
-        <span class="author">by Gwen-Zoe Yang</span>
-        <span class="contact">Questions? <a href="mailto:gy101@wellesley.edu">gy101@wellesley.edu</a></span>
+        <span class="author">by Gwen-Zoe Yang and Selena Yang</span>
+        <span class="contact">Questions? <a href="mailto:gy101@wellesley.edu,sy118@wellesley.edu">Email us</a></span>
       </div>
     </div>
     
